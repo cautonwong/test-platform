@@ -1,0 +1,2 @@
+# 打包时排除 agent 技能目录(仓库里保留,本地仍要用)
+.agents/ export-ignore

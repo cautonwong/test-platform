@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# 发行版名由 src/testplatform/__init__.py 的 PACKAGE_SCOPE 派生(PyPI 名不能带 `@` / `/`);
+# tests_unit/test_distribution_metadata.py 拿这条 name 与那个常量对齐。
+name = "cautonwong-testplatform"
+version = "0.1.0"
+description = "多协议/多设备自动化测试平台骨架"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+# 装成包以后跑一个任务的入口(源码布局里是 tools/run_task.py,同一个 main)。
+testplatform-run-task = "testplatform.execution.cli:main"
+# 平台入口(子命令):目前是脚手架。它是**投递壳** —— 生成的东西全是 Python。
+testplatform = "testplatform.cli:main"
+
+[project.entry-points.pytest11]
+# pytest 自己按它加载平台插件。装了这条以后不要再传 `-p testplatform.plugin`:
+# 同一个模块两个名字 = `Plugin already registered`(两处调用点按 resolve 结果分叉)。
+testplatform = "testplatform.plugin"
+
+[project.optional-dependencies]
+parallel = ["pytest-xdist>=3.8"]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.8",
+    "pytest-timeout>=2.4",
+    "pytest-repeat>=0.9",
+    "pytest-randomly>=5.0",
+    "pytest-cov>=7.0",
+    "pytest-html>=4.2",
+]
+serial = ["pyserial>=3.5"]
+ssh = ["paramiko>=3.0"]
+http = ["requests>=2.31"]
+mqtt = ["paho-mqtt>=1.6"]
+can = ["python-can>=4.3"]
+all = ["pyserial>=3.5", "paramiko>=3.0", "requests>=2.31", "paho-mqtt>=1.6", "python-can>=4.3"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+# 执行器自己那几样资源(从站脚本 / 寄存器表 / 条款清单 / 台架量名 / 子 pytest 的 ini / 示例产品)。
+# 仓库里的 configs/ 与 tools/ 是**源**,这里是随包走的那份;tests_unit/test_package_data.py 守住不漂移。
+# 示例产品是唯一一样只进包、不进 PACKAGE_REQUIRED 的:`tests_support/` 整个目录不进包(那里面是测试夹具),
+# 只挑 fake_product.py 一个文件 —— 它是装完的用户跑示例任务时要的那份。
+testplatform = ["_data/pyproject.toml", "_data/tools/*.py", "_data/configs/*.yaml", "_data/configs/import/*.yaml", "_data/tests_support/*.py"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests", "tests_platform", "tests_unit", "tests_integration", "tests_scenario"]
+# pytest-randomly 装上后自带 autouse,会打乱所有人的执行顺序;这里默认挡掉,要用时在命令行加 -p randomly。
+addopts = "-p no:randomly"
+timeout = 60
+timeout_method = "thread"
+markers = [
+    "slow: 真跑 pip / build / venv 的用例(单条可能几十秒);`-m \"not slow\"` 可跳过",
+    "contract: 对某一类设备所有实例都必须满足的通用验收测试,配合 pytest_generate_tests 按设备清单自动展开",
+    "real_hardware: 只有连接真实硬件才有意义的用例,--force-simulator 下自动跳过(也可在用例内部按具体设备的实际模式精确跳过)",
+    "requires_capability: 用例依赖的设备能力;设备型号未声明该能力时在收集阶段自动跳过",
+    "xdist_group: 同一个 via: 下的设备落在同一个并行执行组(--dist loadgroup 生效)",
+]
+
+# 只给 domain/ 与 protocol/ 设门槛(没有硬件、没有网络的那两层)。
+# 93 是刻意低于当前实测 94.29% 的头寸:真正掉下来会红,正常增量不会逼人写凑数测试。
+# 只有显式带 --cov 时才生效,默认套件不跑覆盖率。
+[tool.coverage.report]
+fail_under = 93

@@ -1,0 +1,1261 @@
+{
+  "cases": {
+    "M_00_00_01_000002_01": {
+      "clause": "DLT645-4.5.1",
+      "file": "tests/test_meter.py",
+      "line": 55,
+      "tags": [
+        "一致性",
+        "通信"
+      ]
+    },
+    "M_00_00_01_000002_02": {
+      "clause": "DLT645-4.5.4",
+      "file": "tests/test_meter.py",
+      "line": 76,
+      "tags": [
+        "一致性",
+        "记录",
+        "验收"
+      ]
+    },
+    "M_00_00_01_000002_03": {
+      "clause": "DLT645-4.5.5",
+      "file": "tests/test_meter.py",
+      "line": 88,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000002_09": {
+      "clause": "DLT645-4.5.2",
+      "file": "tests/test_meter.py",
+      "line": 62,
+      "tags": [
+        "一致性",
+        "读数",
+        "验收"
+      ]
+    },
+    "M_00_00_01_000002_10": {
+      "clause": "DLT645-4.5.2",
+      "file": "tests_platform/test_mock_meter_end_to_end.py",
+      "line": 59,
+      "tags": [
+        "一致性",
+        "通信"
+      ]
+    },
+    "M_00_00_01_000003_01": {
+      "clause": "GBT34131-5.1.1",
+      "file": "tests/test_battery.py",
+      "line": 24,
+      "tags": [
+        "一致性",
+        "通信"
+      ]
+    },
+    "M_00_00_01_000003_02": {
+      "clause": "GBT34131-5.2.1",
+      "file": "tests/test_battery.py",
+      "line": 31,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000003_03": {
+      "clause": "GBT34131-5.2.2",
+      "file": "tests/test_battery.py",
+      "line": 39,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000003_04": {
+      "clause": "GBT34131-5.2.3",
+      "file": "tests/test_battery.py",
+      "line": 47,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000003_05": {
+      "clause": "GBT34131-5.2.4",
+      "file": "tests/test_battery.py",
+      "line": 58,
+      "tags": [
+        "一致性",
+        "告警"
+      ]
+    },
+    "M_00_00_01_000003_19": {
+      "clause": "GBT34131-5.2.1",
+      "file": "tests/test_device_models.py",
+      "line": 69,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000004_02": {
+      "clause": "GBT37408-5.3.1",
+      "file": "tests/test_inverter.py",
+      "line": 101,
+      "tags": [
+        "一致性",
+        "实时性"
+      ]
+    },
+    "M_00_00_01_000005_01": {
+      "clause": "GBT37408-5.1.1",
+      "file": "tests/test_inverter.py",
+      "line": 43,
+      "tags": [
+        "一致性",
+        "通信"
+      ]
+    },
+    "M_00_00_01_000005_02": {
+      "clause": "GBT37408-5.2.1",
+      "file": "tests/test_inverter.py",
+      "line": 50,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000005_03": {
+      "clause": "GBT37408-5.2.2",
+      "file": "tests/test_inverter.py",
+      "line": 65,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000005_04": {
+      "clause": "GBT37408-5.2.3",
+      "file": "tests/test_inverter.py",
+      "line": 73,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "M_00_00_01_000006_02": {
+      "clause": "GBT37408-5.2.4",
+      "file": "tests/test_inverter.py",
+      "line": 89,
+      "tags": [
+        "一致性",
+        "记录"
+      ]
+    },
+    "M_00_00_01_000006_04_2": {
+      "clause": "GBT37408-5.1.2",
+      "file": "tests/test_inverter.py",
+      "line": 210,
+      "tags": [
+        "链路"
+      ]
+    },
+    "S_00_00_01_000001_01": {
+      "clause": "GBT37408-5.2.1",
+      "file": "tests_scenario/test_grid_frequency.py",
+      "line": 31,
+      "tags": [
+        "场景",
+        "验收"
+      ]
+    },
+    "S_00_00_01_000002_01": {
+      "clause": "GBT37408-5.2.1",
+      "file": "tests_scenario/test_grid_frequency.py",
+      "line": 88,
+      "tags": [
+        "场景",
+        "反例"
+      ]
+    },
+    "S_00_00_01_000003_01": {
+      "clause": "GBT37408-5.2.1",
+      "file": "tests_scenario/test_grid_frequency.py",
+      "line": 151,
+      "tags": [
+        "场景"
+      ]
+    },
+    "S_00_00_02_000001_01": {
+      "clause": "DLT614-设置类条款",
+      "file": "tests_scenario/test_dut_cleanup.py",
+      "line": 25,
+      "tags": [
+        "场景",
+        "设置"
+      ]
+    },
+    "S_00_00_03_000001_01": {
+      "clause": "GBT17215.321-走字误差",
+      "file": "tests_scenario/test_derived_error.py",
+      "line": 164,
+      "tags": [
+        "场景",
+        "派生量"
+      ]
+    },
+    "S_00_00_03_000002_01": {
+      "clause": "GBT17215.321-走字误差",
+      "file": "tests_scenario/test_derived_error.py",
+      "line": 187,
+      "tags": [
+        "场景",
+        "派生量",
+        "反例"
+      ]
+    },
+    "S_00_00_03_000003_01": {
+      "clause": "GBT17215.321-走字误差",
+      "file": "tests_scenario/test_derived_error.py",
+      "line": 208,
+      "tags": [
+        "场景",
+        "派生量",
+        "方向"
+      ]
+    },
+    "S_00_00_04_000001_01": {
+      "clause": "DLT614-设置类条款",
+      "file": "tests_scenario/bench_restore_cases.py",
+      "line": 28,
+      "tags": [
+        "场景",
+        "设置",
+        "反例"
+      ]
+    },
+    "S_00_00_05_000001_01": {
+      "clause": "free: 平台:数据注入",
+      "file": "tests_scenario/test_injection_scenario.py",
+      "line": 25,
+      "tags": [
+        "场景",
+        "注入"
+      ]
+    },
+    "T_00_00_01_000000_01": {
+      "clause": "free: 平台:任务闭环",
+      "file": "tests_platform/test_task_loop.py",
+      "line": 28,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_02_000000_01": {
+      "clause": "free: 平台:MBAP 端到端",
+      "file": "tests_platform/test_task_mbap.py",
+      "line": 45,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_02_000000_02": {
+      "clause": "free: 平台:MBAP 端到端",
+      "file": "tests_platform/test_task_mbap.py",
+      "line": 81,
+      "tags": [
+        "一致性",
+        "读数"
+      ]
+    },
+    "T_00_00_02_000000_03": {
+      "clause": "free: 平台:MBAP 端到端",
+      "file": "tests_platform/test_task_mbap.py",
+      "line": 104,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_02_000000_04": {
+      "clause": "free: 平台:MBAP 端到端",
+      "file": "tests_platform/test_task_mbap.py",
+      "line": 126,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_02_000000_05": {
+      "clause": "free: 平台:MBAP 端到端",
+      "file": "tests_platform/test_task_mbap.py",
+      "line": 137,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_02_000000_06": {
+      "clause": "free: 平台:MBAP 端到端",
+      "file": "tests_platform/test_task_mbap.py",
+      "line": 147,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_03_000000_01": {
+      "clause": "free: 平台:死因分类",
+      "file": "tests_platform/test_round_probe_cases.py",
+      "line": 28,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_03_000000_02": {
+      "clause": "free: 平台:死因分类",
+      "file": "tests_platform/test_round_probe_cases.py",
+      "line": 37,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_03_000000_03": {
+      "clause": "free: 平台:死因分类",
+      "file": "tests_platform/test_round_probe_cases.py",
+      "line": 47,
+      "tags": [
+        "任务"
+      ]
+    },
+    "T_00_00_04_000000_01": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 56,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_02": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 71,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_03": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 89,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_04": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 117,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_05": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 136,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_06": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 158,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_07": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 177,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_08": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 197,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_09": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 241,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_10": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 375,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_11": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 396,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_12": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 481,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_13": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 509,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_14": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 535,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_15": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 554,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_16": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 301,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_17": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 331,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_18": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 420,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_19": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 440,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_20": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 459,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_06_000000_01": {
+      "clause": "free: 平台:分发",
+      "file": "tests_platform/test_sample_product_ships_with_the_package.py",
+      "line": 38,
+      "tags": [
+        "分发"
+      ]
+    },
+    "T_00_00_06_000000_02": {
+      "clause": "free: 平台:分发",
+      "file": "tests_platform/test_sample_product_ships_with_the_package.py",
+      "line": 53,
+      "tags": [
+        "分发"
+      ]
+    },
+    "T_00_00_06_000000_03": {
+      "clause": "free: 平台:分发",
+      "file": "tests_platform/test_sample_product_ships_with_the_package.py",
+      "line": 63,
+      "tags": [
+        "分发"
+      ]
+    },
+    "T_00_00_06_000000_04": {
+      "clause": "free: 平台:分发",
+      "file": "tests_platform/test_sample_product_ships_with_the_package.py",
+      "line": 79,
+      "tags": [
+        "分发"
+      ]
+    },
+    "T_00_00_07_000000_01": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 548,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_02": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 562,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_03": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 578,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_04": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 588,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_05": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 668,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_06": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 683,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_07": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 704,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_08": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 736,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_09": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 801,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_07_000000_10": {
+      "clause": "free: 平台:证据",
+      "file": "tests_platform/test_evidence_contract.py",
+      "line": 817,
+      "tags": [
+        "证据",
+        "契约"
+      ]
+    },
+    "T_00_00_13_000000_01": {
+      "clause": "free: 平台:传输",
+      "file": "tests_unit/test_real_transports.py",
+      "line": 328,
+      "tags": [
+        "传输",
+        "契约"
+      ]
+    },
+    "T_00_00_13_000000_02": {
+      "clause": "free: 平台:传输",
+      "file": "tests_unit/test_real_transports.py",
+      "line": 346,
+      "tags": [
+        "传输",
+        "契约"
+      ]
+    },
+    "T_00_00_13_000000_03": {
+      "clause": "free: 平台:传输",
+      "file": "tests_unit/test_real_transports.py",
+      "line": 367,
+      "tags": [
+        "传输",
+        "契约"
+      ]
+    },
+    "T_00_00_13_000000_04": {
+      "clause": "free: 平台:传输",
+      "file": "tests_unit/test_real_transports.py",
+      "line": 388,
+      "tags": [
+        "传输",
+        "契约"
+      ]
+    },
+    "T_00_00_14_000000_01": {
+      "clause": "free: 平台:装配",
+      "file": "tests_platform/test_support_via_chain.py",
+      "line": 52,
+      "tags": [
+        "装配"
+      ]
+    },
+    "T_00_00_14_000000_02": {
+      "clause": "free: 平台:装配",
+      "file": "tests_platform/test_support_via_chain.py",
+      "line": 67,
+      "tags": [
+        "装配"
+      ]
+    },
+    "T_00_00_14_000000_03": {
+      "clause": "free: 平台:装配",
+      "file": "tests_platform/test_support_via_chain.py",
+      "line": 89,
+      "tags": [
+        "装配"
+      ]
+    },
+    "T_00_00_15_000000_01": {
+      "clause": "free: 平台:清理",
+      "file": "tests_platform/test_teardown.py",
+      "line": 68,
+      "tags": [
+        "清理"
+      ]
+    }
+  },
+  "clauses": {
+    "DLT614-设置类条款": {
+      "cases": [
+        "S_00_00_02_000001_01",
+        "S_00_00_04_000001_01"
+      ],
+      "not_applicable": "",
+      "number": "",
+      "standard": "DL/T 614",
+      "summary": "设置类条款的台架复位与收尾"
+    },
+    "DLT645-4.5.1": {
+      "cases": [
+        "M_00_00_01_000002_01"
+      ],
+      "not_applicable": "",
+      "number": "4.5.1",
+      "standard": "DL/T 645",
+      "summary": "连接与建立通信"
+    },
+    "DLT645-4.5.2": {
+      "cases": [
+        "M_00_00_01_000002_09",
+        "M_00_00_01_000002_10"
+      ],
+      "not_applicable": "",
+      "number": "4.5.2",
+      "standard": "DL/T 645",
+      "summary": "读数与参数设置回读"
+    },
+    "DLT645-4.5.3": {
+      "cases": [],
+      "not_applicable": "本仓库没有该条款原文,DL/T645 型号的点表也没有可对应到它的量:TODO(来源)拿到条款原文后重判",
+      "number": "4.5.3",
+      "standard": "DL/T 645",
+      "summary": "当前只用作用例身份示例,没有专门用例"
+    },
+    "DLT645-4.5.4": {
+      "cases": [
+        "M_00_00_01_000002_02"
+      ],
+      "not_applicable": "",
+      "number": "4.5.4",
+      "standard": "DL/T 645",
+      "summary": "读数历史与窗口"
+    },
+    "DLT645-4.5.5": {
+      "cases": [
+        "M_00_00_01_000002_03"
+      ],
+      "not_applicable": "",
+      "number": "4.5.5",
+      "standard": "DL/T 645",
+      "summary": "未知读数键的错误提示"
+    },
+    "GBT17215.321-走字误差": {
+      "cases": [
+        "S_00_00_03_000001_01",
+        "S_00_00_03_000002_01",
+        "S_00_00_03_000003_01"
+      ],
+      "not_applicable": "",
+      "number": "",
+      "standard": "GB/T 17215.321",
+      "summary": "走字误差的派生判据(场景层)"
+    },
+    "GBT34131-5.1.1": {
+      "cases": [
+        "M_00_00_01_000003_01"
+      ],
+      "not_applicable": "",
+      "number": "5.1.1",
+      "standard": "GB/T 34131",
+      "summary": "电池连接"
+    },
+    "GBT34131-5.2.1": {
+      "cases": [
+        "M_00_00_01_000003_02",
+        "M_00_00_01_000003_19"
+      ],
+      "not_applicable": "",
+      "number": "5.2.1",
+      "standard": "GB/T 34131",
+      "summary": "电池 SOC 判据与能力声明"
+    },
+    "GBT34131-5.2.2": {
+      "cases": [
+        "M_00_00_01_000003_03"
+      ],
+      "not_applicable": "",
+      "number": "5.2.2",
+      "standard": "GB/T 34131",
+      "summary": "点表驱动的通用读数"
+    },
+    "GBT34131-5.2.3": {
+      "cases": [
+        "M_00_00_01_000003_04"
+      ],
+      "not_applicable": "",
+      "number": "5.2.3",
+      "standard": "GB/T 34131",
+      "summary": "读数键到领域量"
+    },
+    "GBT34131-5.2.4": {
+      "cases": [
+        "M_00_00_01_000003_05"
+      ],
+      "not_applicable": "",
+      "number": "5.2.4",
+      "standard": "GB/T 34131",
+      "summary": "低 SOC 软告警"
+    },
+    "GBT37408-5.1.1": {
+      "cases": [
+        "M_00_00_01_000005_01"
+      ],
+      "not_applicable": "",
+      "number": "5.1.1",
+      "standard": "GB/T 37408",
+      "summary": "逆变器连接"
+    },
+    "GBT37408-5.1.2": {
+      "cases": [
+        "M_00_00_01_000006_04_2"
+      ],
+      "not_applicable": "",
+      "number": "5.1.2",
+      "standard": "GB/T 37408",
+      "summary": "经工控机网关接入"
+    },
+    "GBT37408-5.2.1": {
+      "cases": [
+        "M_00_00_01_000005_02",
+        "S_00_00_01_000001_01",
+        "S_00_00_01_000002_01",
+        "S_00_00_01_000003_01"
+      ],
+      "not_applicable": "",
+      "number": "5.2.1",
+      "standard": "GB/T 37408",
+      "summary": "按读数键读数、场景设定点(引用最广的一组)"
+    },
+    "GBT37408-5.2.2": {
+      "cases": [
+        "M_00_00_01_000005_03"
+      ],
+      "not_applicable": "",
+      "number": "5.2.2",
+      "standard": "GB/T 37408",
+      "summary": "点表驱动的通用读数与归因用例"
+    },
+    "GBT37408-5.2.3": {
+      "cases": [
+        "M_00_00_01_000005_04"
+      ],
+      "not_applicable": "",
+      "number": "5.2.3",
+      "standard": "GB/T 37408",
+      "summary": "读数键到领域量与归因用例"
+    },
+    "GBT37408-5.2.4": {
+      "cases": [
+        "M_00_00_01_000006_02"
+      ],
+      "not_applicable": "",
+      "number": "5.2.4",
+      "standard": "GB/T 37408",
+      "summary": "读数历史与归因用例"
+    },
+    "GBT37408-5.2.5": {
+      "cases": [],
+      "not_applicable": "没有条款原文,也没有对应到它的设备能力/点表量,无法构造可判定的用例:TODO(来源)",
+      "number": "5.2.5",
+      "standard": "GB/T 37408",
+      "summary": "归因用例(仅被跳过 / 筛掉的那几条)"
+    },
+    "GBT37408-5.3.1": {
+      "cases": [
+        "M_00_00_01_000004_02"
+      ],
+      "not_applicable": "",
+      "number": "5.3.1",
+      "standard": "GB/T 37408",
+      "summary": "协议超时内的应答"
+    }
+  },
+  "counts": {
+    "cases": 79,
+    "clauses": 20,
+    "devices": 6,
+    "gaps": 0,
+    "models": 5
+  },
+  "criteria_profiles": {
+    "battery_default": {
+      "devices": [
+        "bat_01"
+      ],
+      "models": [
+        "battery_lfp_series"
+      ],
+      "quantities": [
+        "voltage_v",
+        "soc_percent"
+      ]
+    },
+    "grid_50hz": {
+      "devices": [
+        "inv_01",
+        "inv_02_via_ipc",
+        "inv_03"
+      ],
+      "models": [
+        "inverter_pv_series"
+      ],
+      "quantities": [
+        "grid_freq_hz",
+        "grid_voltage_v",
+        "output_power_w",
+        "output_power_w"
+      ]
+    },
+    "meter_220v": {
+      "devices": [
+        "meter_01"
+      ],
+      "models": [
+        "dlt645_meter",
+        "dtsd1352_modbus"
+      ],
+      "quantities": [
+        "电压",
+        "有功电量"
+      ]
+    }
+  },
+  "devices": {
+    "bat_01": {
+      "access": "serial",
+      "mode": "simulator",
+      "model": "battery_lfp_series",
+      "role": "dut"
+    },
+    "grid_sim_01": {
+      "access": "tcp",
+      "mode": "simulator",
+      "model": "grid_simulator_3ph",
+      "role": "support"
+    },
+    "inv_01": {
+      "access": "tcp",
+      "mode": "simulator",
+      "model": "inverter_pv_series",
+      "role": "dut"
+    },
+    "inv_02_via_ipc": {
+      "access": "gateway_ssh",
+      "mode": "simulator",
+      "model": "inverter_pv_series",
+      "role": "dut"
+    },
+    "inv_03": {
+      "access": "tcp",
+      "mode": "simulator",
+      "model": "inverter_pv_series",
+      "role": "dut"
+    },
+    "meter_01": {
+      "access": "serial",
+      "mode": "simulator",
+      "model": "dtsd1352_modbus",
+      "role": "dut"
+    }
+  },
+  "gaps": [],
+  "models": {
+    "battery_lfp_series": {
+      "capabilities": [
+        "SOC",
+        "电压",
+        "电流"
+      ],
+      "cases": [
+        "M_00_00_01_000003_01",
+        "M_00_00_01_000003_02",
+        "M_00_00_01_000003_03",
+        "M_00_00_01_000003_04",
+        "M_00_00_01_000003_05"
+      ],
+      "ci": [
+        {
+          "access": "gateway_ssh",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "serial",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "tcp",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        }
+      ],
+      "clauses": [
+        "GBT34131-5.1.1",
+        "GBT34131-5.2.1",
+        "GBT34131-5.2.2",
+        "GBT34131-5.2.3",
+        "GBT34131-5.2.4"
+      ],
+      "criteria": "battery_default",
+      "instances": [
+        "bat_01"
+      ],
+      "protocol": "vendor_ascii",
+      "reading_keys": [
+        "SOC",
+        "电压",
+        "电流"
+      ],
+      "type": "battery"
+    },
+    "dlt645_meter": {
+      "capabilities": [
+        "有功电量",
+        "电压"
+      ],
+      "cases": [
+        "M_00_00_01_000002_01",
+        "M_00_00_01_000002_02",
+        "M_00_00_01_000002_03",
+        "M_00_00_01_000002_09"
+      ],
+      "ci": [
+        {
+          "access": "gateway_ssh",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "serial",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        }
+      ],
+      "clauses": [
+        "DLT645-4.5.1",
+        "DLT645-4.5.2",
+        "DLT645-4.5.4",
+        "DLT645-4.5.5"
+      ],
+      "criteria": "meter_220v",
+      "instances": [],
+      "protocol": "dlt645",
+      "reading_keys": [
+        "时钟日期",
+        "时钟时间",
+        "有功电量",
+        "电压"
+      ],
+      "type": "meter"
+    },
+    "dtsd1352_modbus": {
+      "capabilities": [
+        "有功电量",
+        "电压"
+      ],
+      "cases": [
+        "M_00_00_01_000002_01",
+        "M_00_00_01_000002_02",
+        "M_00_00_01_000002_03",
+        "M_00_00_01_000002_09"
+      ],
+      "ci": [
+        {
+          "access": "gateway_ssh",
+          "data_injection": true,
+          "faults": [
+            "bad-crc",
+            "link-lost",
+            "slow",
+            "timeout"
+          ],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "serial",
+          "data_injection": true,
+          "faults": [
+            "bad-crc",
+            "link-lost",
+            "slow",
+            "timeout"
+          ],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "tcp",
+          "data_injection": true,
+          "faults": [
+            "bad-crc",
+            "link-lost",
+            "slow",
+            "timeout"
+          ],
+          "faults_are_static": true,
+          "runnable": true
+        }
+      ],
+      "clauses": [
+        "DLT645-4.5.1",
+        "DLT645-4.5.2",
+        "DLT645-4.5.4",
+        "DLT645-4.5.5"
+      ],
+      "criteria": "meter_220v",
+      "instances": [
+        "meter_01"
+      ],
+      "protocol": "modbus_rtu",
+      "reading_keys": [
+        "有功电量",
+        "有功计量模式",
+        "电压"
+      ],
+      "type": "meter"
+    },
+    "grid_simulator_3ph": {
+      "capabilities": [
+        "Fre",
+        "Ia",
+        "Ib",
+        "Ic",
+        "MeterConst",
+        "QUaUb",
+        "QUaUc",
+        "Ua",
+        "Ub",
+        "Uc",
+        "θa",
+        "θb",
+        "θc",
+        "接线方式"
+      ],
+      "cases": [],
+      "ci": [
+        {
+          "access": "gateway_ssh",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "serial",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "tcp",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        }
+      ],
+      "clauses": [],
+      "criteria": null,
+      "instances": [
+        "grid_sim_01"
+      ],
+      "protocol": "vendor_ascii",
+      "reading_keys": [
+        "Fre",
+        "Ia",
+        "Ib",
+        "Ic",
+        "MeterConst",
+        "QUaUb",
+        "QUaUc",
+        "Ua",
+        "Ub",
+        "Uc",
+        "θa",
+        "θb",
+        "θc",
+        "接线方式"
+      ],
+      "type": "grid_simulator"
+    },
+    "inverter_pv_series": {
+      "capabilities": [
+        "有功功率",
+        "电压",
+        "频率"
+      ],
+      "cases": [
+        "M_00_00_01_000003_19",
+        "M_00_00_01_000004_02",
+        "M_00_00_01_000005_01",
+        "M_00_00_01_000005_02",
+        "M_00_00_01_000005_03",
+        "M_00_00_01_000005_04",
+        "M_00_00_01_000006_02"
+      ],
+      "ci": [
+        {
+          "access": "gateway_ssh",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "serial",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        },
+        {
+          "access": "tcp",
+          "data_injection": false,
+          "faults": [],
+          "faults_are_static": true,
+          "runnable": true
+        }
+      ],
+      "clauses": [
+        "GBT34131-5.2.1",
+        "GBT37408-5.1.1",
+        "GBT37408-5.2.1",
+        "GBT37408-5.2.2",
+        "GBT37408-5.2.3",
+        "GBT37408-5.2.4",
+        "GBT37408-5.3.1"
+      ],
+      "criteria": "grid_50hz",
+      "instances": [
+        "inv_01",
+        "inv_02_via_ipc",
+        "inv_03"
+      ],
+      "protocol": "vendor_ascii",
+      "reading_keys": [
+        "有功功率",
+        "电压",
+        "频率"
+      ],
+      "type": "inverter"
+    }
+  },
+  "version": 1,
+  "waived": [
+    {
+      "reason": "本仓库没有该条款原文,DL/T645 型号的点表也没有可对应到它的量:TODO(来源)拿到条款原文后重判",
+      "where": "DLT645-4.5.3"
+    },
+    {
+      "reason": "没有条款原文,也没有对应到它的设备能力/点表量,无法构造可判定的用例:TODO(来源)",
+      "where": "GBT37408-5.2.5"
+    }
+  ]
+}

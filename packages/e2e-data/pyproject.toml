@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# 公共数据包(PRD:平台 / 公共数据 / 产品用例三分)。发行版名与平台包同一套命名规则
+# (npm scope → `cautonwong-*`,PyPI 名不能带 `@` / `/`),但它是**独立发的另一个包**。
+name = "cautonwong-e2e-data"
+version = "0.1.0"
+description = "公共数据:型号库 / 判据集 / 标准条款清单(只装数据,不含用例逻辑)"
+requires-python = ">=3.10"
+# 只装数据:pytest / pyyaml 这类运行时依赖一概不引,装它不该改动跑测环境的依赖图。
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+e2e_data = ["*.yaml"]

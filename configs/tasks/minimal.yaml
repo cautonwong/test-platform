@@ -1,0 +1,27 @@
+# 任务文件:一份任务 = 一次测试。票 01 的最小闭环。
+#
+#   python tools/run_task.py configs/tasks/minimal.yaml
+#
+# 五个必填字段:id / product / launch / devices / select;另有一个可选的 kind。
+# kind 是这一轮的种类:acceptance(缺省,验收设备)/ smoke(只验通路,不验设备)。
+# 这份任务验的是闭环通路(产品起得来、平台和产品读到同一块表),不是设备 —— 所以标成 smoke:
+# 否则「设备级 0/0」会被当成一台设备都没验,冒烟任务永远红。
+# 占位符是闭集:${PORT}(产品监听端口,平台分配)、${SLAVE_PORT:<设备id>}(那台模拟从站的端口,
+# 设备 id 必须在这份任务引用的清单里)、${PYTHON}(当前解释器)。
+# 写死端口会在并行跑两个任务时撞端口,所以 launch 里必须有 ${PORT}。
+# devices 与 launch 里的脚本路径都相对仓库根目录。
+id: minimal
+kind: smoke
+product: fake-edgec
+launch:
+  - ${PYTHON}
+  - tests_support/fake_product.py
+  - --port
+  - ${PORT}
+  - --slave-port
+  - meter_01:${SLAVE_PORT:meter_01}
+  # 慢启动 2 秒:就绪等待必须真的等,而不是"用例跑得快所以没撞上"。
+  - --startup-delay
+  - "2"
+devices: configs/devices_mock.yaml
+select: case:T_00_00_01_000000

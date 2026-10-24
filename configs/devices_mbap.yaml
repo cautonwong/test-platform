@@ -1,0 +1,37 @@
+# Modbus TCP(MBAP 头)电表示例:点表与 configs/devices.yaml 里的 Modbus RTU 电表同形,
+# 只把规约换成 modbus_tcp、接入换成 tcp。帧格式交给模拟从站参数 simulated_frames 选,
+# 所以这份清单不开真设备也能跑:
+#   python -m pytest -q --device-config configs/devices_mbap.yaml
+#
+# 两条协议边界(见 config/manifest.py 的 PROTOCOL_ACCESS):
+#   - modbus_tcp 只放行 access: tcp。MBAP 帧没有 CRC、靠 TCP 保证字节完整,串口上跑不了,
+#     写 access: serial 在装配期就报错,而不是等串口上一帧应答都收不到。
+#   - bus_address 是 MBAP 头里的单元号(1–247),和 modbus_rtu 的从站地址同一个含义。
+
+# 判据集:按整机声明一次,设备用 criteria 引用它。合不合格由这里判,阈值不在代码里。
+criteria_profiles:
+  meter_220v:
+    - {quantity: 电压, min: 198, max: 242}
+    - {quantity: 有功电量, min: 0}
+
+models:
+  dtsd1352_mbap:
+    type: meter
+    protocol: modbus_tcp
+    criteria: meter_220v
+    capabilities: [有功电量, 电压]
+    point_table:
+      # 0x0001E240 × 0.01 = 1234.56 kWh;2300 × 0.1 = 230.0 V
+      有功电量: {address: 0, length: 4, encoding: uint, scale: 0.01, unit: kWh}
+      电压: {address: 2, length: 2, encoding: uint, scale: 0.1, unit: V}
+
+devices:
+  - id: meter_tcp_01
+    model: dtsd1352_mbap
+    access: tcp
+    mode: simulator
+    name: "电表-台区A-01-Modbus TCP"
+    bus_address: 1
+    connection:
+      simulated_registers: {0: 1, 1: 57920, 2: 2300}
+      simulated_frames: modbus_tcp

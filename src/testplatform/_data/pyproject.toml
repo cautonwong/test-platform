@@ -1,0 +1,9 @@
+# 装成包以后子 pytest 的 ini(`-c` 指到这份):项目目录自己带 pyproject.toml 时用项目那份。
+#
+# 只放执行器依赖的几项。用例标记(contract / real_hardware / ...)不在这里复制一份 ——
+# 那是项目自己的 pytest 配置;项目没写标记时 pytest 只会警告,不会影响结论。
+[tool.pytest.ini_options]
+addopts = "-p no:randomly"
+# 单条用例的兜底超时:装了 pytest-timeout 才生效(dev extra 里有,运行时不强依赖)。
+timeout = 60
+timeout_method = "thread"

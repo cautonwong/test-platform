@@ -1,0 +1,24 @@
+# 任务文件:一份走 Modbus TCP(MBAP 头)的任务 —— 票 02b。
+#
+#   python tools/run_task.py configs/tasks/mbap.yaml
+#
+# 和 minimal.yaml 同一个闭环,只有帧格式不同,而且任务文件里不写帧格式:
+# 它由清单里这台设备型号的 protocol 推导(modbus_tcp → 平台起的那台模拟从站说 MBAP 帧,
+# 其余一律 RTU)。所以这份任务单看就能跑,不需要设任何环境变量。
+# 产品那一侧要显式说清:它是外部程序,平台不知道它读的是哪种帧,只能由任务文件告诉它。
+#
+# kind: smoke —— 这份任务验的是 MBAP 帧能不能通,不是设备验收。
+id: mbap
+kind: smoke
+product: fake-edgec
+launch:
+  - ${PYTHON}
+  - tests_support/fake_product.py
+  - --port
+  - ${PORT}
+  - --slave-port
+  - meter_tcp_01:${SLAVE_PORT:meter_tcp_01}
+  - --frame
+  - modbus_tcp
+devices: configs/devices_mbap.yaml
+select: case:T_00_00_02_000000_01

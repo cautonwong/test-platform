@@ -1,0 +1,236 @@
+# 一任务一 job,gate job 汇总。
+#
+# 结构不是靠人看:`.github/workflows/` 由 tests_unit/test_workflow.py 机械校验 ——
+# configs/tasks/ 里每个任务都有 job、gate 的 needs 覆盖全部任务 job、gate 步骤不许被
+# if/continue-on-error 掩盖、每个任务 job 都上传产物。漏一处就红。
+#
+# 为什么这么严:CI 的假绿是这套平台最贵的一种假绿 —— 本地全绿、CI 永远绿、其实什么都没跑。
+#
+# 安装形态:09(打包分发)落地之前先用源码形态(PYTHONPATH=src);09 回来只换这一段,
+# 任务与 gate 的接线不用动。
+#
+# **每个任务 job 都必须显式传 `--root ${{ github.workspace }}`**:09 之后 `--root` 的语义是
+# "项目目录"(平台资源从包里 `_data/` 回落)。不写它,探测会落到当前目录 —— 而 CI 的当前目录
+# 恰好就是 workspace,今天能过、换个 job 配置就过不了。这种"碰巧对"由
+# tests_unit/test_workflow.py 钉住。
+name: tasks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------- 任务 ----
+  # 一个任务 = 一个 job:失败互不阻塞,artifact 各自保留。
+  # 任务目录 = 证据 + 人读报告 + summary.json(04 之后三者同一处),所以上传一份就够。
+  task-minimal:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+      - name: 跑任务 minimal
+        run: python tools/run_task.py configs/tasks/minimal.yaml --root ${{ github.workspace }} --evidence-dir reports/minimal
+      - name: 上传报告与证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-minimal
+          path: reports
+          if-no-files-found: error
+
+  task-mbap:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+      - name: 跑任务 mbap
+        run: python tools/run_task.py configs/tasks/mbap.yaml --root ${{ github.workspace }} --evidence-dir reports/mbap
+      - name: 上传报告与证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-mbap
+          path: reports
+          if-no-files-found: error
+
+  # 第一条 acceptance 任务(票 15):示例产品 + 模拟设备,验的是"验收这条链路通"。
+  # 它参与门禁 —— 这是 gate 唯一能真判的一次(其余两个是 smoke)。
+  task-acceptance_sample:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+      - name: 跑任务 acceptance_sample
+        run: python tools/run_task.py configs/tasks/acceptance_sample.yaml --root ${{ github.workspace }} --evidence-dir reports/acceptance_sample
+      - name: 上传报告与证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-acceptance_sample
+          path: reports
+          if-no-files-found: error
+
+  # 资产目录是**入库的生成物**(catalog/catalog.json + CATALOG.md):入库却无人校验,
+  # 它一定会漂(15 加了 tag 没重新生成,17 才发现)。这个 job 就是那道校验。
+  catalog:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+      - name: 校验资产目录与磁盘一致
+        run: python tools/catalog.py --verify
+
+  # ------------------------------------------- 装成包以后还能跑(票 09c)----
+  # 上面几个任务 job 跑的是源码形态(PYTHONPATH=src)。装成包以后是另一条路:资源从
+  # site-packages/testplatform/_data/ 来,插件从 pytest11 entry point 来。这条路没人天天走,
+  # 所以它必须在 CI 上走一遍 —— 只在本地手跑等于没跑。
+  #
+  # 正例:项目目录 = 用例树 + configs,**没有** tests_support/fake_product.py
+  #       → 产品路径回落到包内那份(09e),任务 exit 0。
+  # 负例:把 site-packages 里那份删掉 → exit 4 且消息含「包内缺」。
+  #       只断「非 0」不够:路径写错 / YAML 写错 / 缺别的文件也都是非 0,那样这条负例随时能假绿。
+  #       负例把那个 venv 弄坏了(它已经是「装坏了」的状态),之后不许再用它跑别的。
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 生成 clauses 副本(真源只有 configs/clauses.yaml 一处)
+        run: python tools/sync_data.py
+      - name: 打 wheel,并清掉就地残留
+        # `python -m build` 会在仓库里留下 build/ 与 src/*.egg-info —— 留着会「看起来已安装」
+        # (插件注册两次)。清完再断言一次:清不掉就是脚本没生效。
+        run: |
+          python -m pip install --quiet build
+          python -m build --wheel
+          rm -rf build src/*.egg-info
+          test ! -e build
+          test -z "$(ls -d src/*.egg-info 2>/dev/null)"
+      - name: 一次性 venv(在仓库外)+ 装 wheel
+        run: |
+          python -m venv "$RUNNER_TEMP/venv-install"
+          "$RUNNER_TEMP/venv-install/bin/python" -m pip install --quiet dist/*.whl
+      - name: 正例:项目目录没有 tests_support/ → 产品从包里回落,exit 0
+        # 退出码就是结论:这一条不许被 if / continue-on-error / `|| true` 掩盖。
+        run: |
+          project="$RUNNER_TEMP/project"
+          mkdir -p "$project"
+          cp -r conftest.py configs tests tests_scenario tests_support "$project"/
+          rm -f "$project/tests_support/fake_product.py"
+          "$RUNNER_TEMP/venv-install/bin/testplatform-run-task" "$project/configs/tasks/acceptance_sample.yaml" \
+            --root "$project" --evidence-dir "$project/evidence"
+      - name: 负例:包内缺示例产品 → exit 4 且消息含「包内缺」
+        # 退出码这么拿:`set +e; … > log 2>&1; rc=$?`,不经管道(`cmd | tee log` 拿到的是 tee 的)。
+        run: |
+          package=$("$RUNNER_TEMP/venv-install/bin/python" -c 'import pathlib, testplatform; print(pathlib.Path(testplatform.__file__).parent)')
+          rm "$package/_data/tests_support/fake_product.py"
+          set +e
+          "$RUNNER_TEMP/venv-install/bin/testplatform-run-task" "$RUNNER_TEMP/project/configs/tasks/acceptance_sample.yaml" \
+            --root "$RUNNER_TEMP/project" --evidence-dir "$RUNNER_TEMP/broken" > "$RUNNER_TEMP/negative.log" 2>&1
+          rc=$?
+          set -e
+          echo "exit=$rc"
+          test "$rc" -eq 4 || { echo "期望退出码 4(平台错误),实际 $rc"; cat "$RUNNER_TEMP/negative.log"; exit 1; }
+          grep -q "包内缺 tests_support/fake_product.py" "$RUNNER_TEMP/negative.log" || {
+            echo "消息里没有「包内缺 tests_support/fake_product.py」"; cat "$RUNNER_TEMP/negative.log"; exit 1; }
+
+  # ------------------------------- 下界:Python 3.10(requires-python 的那个)----
+  # 没有 job 跑它,pyproject 里那个下界就只是一句声明。跑全量:少跑哪条用例,绿灯就说不出
+  # 「3.10 兼容」。依赖与本地共享 venv 同口径,不装本仓发行版 —— 装了源码树会与
+  # site-packages 混,数字就与别处不可比。
+  python-310:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # 引号不能省:不加引号 YAML 把它读成浮点 3.1,setup-python 会去找 3.1。
+          python-version: "3.10"
+      - name: 装测试依赖
+        run: python -m pip install --quiet pytest pyyaml openpyxl build pytest-timeout pytest-repeat pytest-randomly pytest-xdist
+      - name: 全量
+        run: python -m pytest -q
+
+  # 发布只在 CI 里发生:本地没有任何发布路径(没有脚本、没有说明)。
+  # id-token: write 是 provenance 必需的 —— 少了它 npm 会拒绝带 --provenance 的发布。
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [gate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+      - run: pip install build
+        local: unsupported 装依赖会改动本机环境
+      - name: 打包(轮子进 dist/,指纹写进 package.json)
+        working-directory: npm
+        run: npm run prepack
+      - name: 发布前内容检查(客户条目 / 真实点表 / 客户名称)
+        run: python tools/check_release_content.py npm
+      - name: 发布(带 provenance)
+        working-directory: npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+  # ---------------------------------------------------------------- 门禁 ----
+  # needs 列全所有任务 job:少一个,那个任务的结论就不会进判定(假绿)。
+  # 这一步的退出码原样传出去:0 合格 / 1 不合格 / 2 测试无效 / 3 未完成 / 4 平台错误 / 5 没跑过任务。
+  gate:
+    needs: [task-minimal, task-mbap, task-acceptance_sample]
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+      - name: 取回各任务的报告
+        uses: actions/download-artifact@v4
+        with:
+          pattern: reports-*
+          path: reports
+          merge-multiple: true
+      - name: 门禁判定(退出码就是结论)
+        run: python tools/gate.py reports

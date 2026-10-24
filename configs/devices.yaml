@@ -1,0 +1,311 @@
+# 判据集:按整机声明一次,设备用 criteria 引用它。
+# 合不合格由这里判,阈值不在代码里;实测值超了照样记录,只标记在读数上。
+# 边界可写 {设备参数: 系数},由组合根按设备自己的额定功率/容量换算。
+criteria_profiles:
+  grid_50hz:
+    - {quantity: grid_freq_hz, min: 45, max: 55}
+    - {quantity: grid_voltage_v, gt: 0}  # 严格大于 0:0V 不是合格电压
+    - {quantity: output_power_w, min: 0, max: {rated_power_w: 1.1}}
+    - {quantity: output_power_w, max: {rated_power_w: 0.9}, severity: warn}  # 软告警,不判不合格
+  battery_default:
+    - {quantity: voltage_v, gt: 0}  # 同上,0V 判不合格
+    - {quantity: soc_percent, min: 10, severity: warn}  # SOC 低于 10% 软告警
+  # 电表:判据量用的是读数键本身(点表的键),所以改点表不用改判据。
+  meter_220v:
+    - {quantity: 电压, min: 198, max: 242}
+    - {quantity: 有功电量, min: 0}
+    # 等值判定:写回参数类点("写 1601 → 读回应等于 1601")。一个判据要么判区间,要么判等值。
+    # 清单里写成字符串也行:与读回的 1601.0 按值比,不按类型比。
+    # - {quantity: 有功计量模式, equals: "1601"}  # 出厂时计量模式是 0,打开它出厂就判不合格
+
+# 型号:同一型号的点表、能力、判据集在这里声明一次。
+# 型号差异只出现在点表里:地址、长度(字节数)、编码、倍率、字节序、单位。
+# 点表项的键就是读数键——用例按「有功功率」取数,不按驱动方法名取数。
+models:
+  inverter_pv_series:
+    type: inverter
+    protocol: vendor_ascii
+    criteria: grid_50hz
+    capabilities: [有功功率, 电压, 频率]
+    # 该型号接受哪些设备级参数:设备实例只写这些名字,拼错一个就在装配前报错。
+    device_params: [rated_power_w]
+    # 该型号是文本行协议:address 是应答行里的字段序号,length 是最大字符数。
+    point_table:
+      有功功率: {address: 0, length: 8, encoding: ascii, unit: W}
+      电压: {address: 1, length: 7, encoding: ascii, unit: V}
+      频率: {address: 2, length: 7, encoding: ascii, unit: Hz}
+
+  battery_lfp_series:
+    type: battery
+    protocol: vendor_ascii
+    criteria: battery_default
+    capabilities: [SOC, 电压, 电流]
+    device_params: [capacity_ah]
+    point_table:
+      SOC: {address: 0, length: 6, encoding: ascii, unit: '%'}
+      电压: {address: 1, length: 7, encoding: ascii, unit: V}
+      电流: {address: 2, length: 7, encoding: ascii, unit: A}
+
+  # 周边设备的型号:和被测设备共用同一套声明(点表 / 能力 / 驱动 / 注册表)。
+  # 不写 criteria —— 周边设备不判合格,它的作用是为被测设备提供电网。
+  #
+  # 量名沿用上游条款「调整台体」块里的写法:Ua 和 Ub 是两件事,合成一个「电压」就丢了
+  # 信息,所以三相电压、三相电流、三个压流角都是独立的量。接线方式是枚举、表常数是整数,
+  # 点表用 uint / 整数编码表达(枚举名 → 整数的对照在 configs/import/params.yaml)。
+  #
+  # 地址现在是占位 `TODO`:真实台架的寄存器地址 / 编码 / 倍率还没拿到。占位地址在
+  # mode: real 的装配期报错(见 config/manifest.py::_validate_real_mode_addresses),
+  # mode: simulator 照常跑。编一个"看着像"的地址会让回读一致变成假绿 —— 宁可报缺。
+  grid_simulator_3ph:
+    type: grid_simulator
+    # 编码与长度是按 vendor_ascii 暂定的**未验证假设**:地址还是 TODO,真台架若是 Modbus,
+    # ascii/7 就是错的。手册到位后与地址一起复核,别把"形状已定"当成"编码已验证"。
+    protocol: vendor_ascii
+    capabilities: [Ua, Ub, Uc, Ia, Ib, Ic, θa, θb, θc, QUaUb, QUaUc, Fre, 接线方式, MeterConst]
+    point_table:
+      Ua: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
+      Ub: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
+      Uc: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
+      Ia: {address: TODO, length: 7, encoding: ascii, unit: A, writable: true}
+      Ib: {address: TODO, length: 7, encoding: ascii, unit: A, writable: true}
+      Ic: {address: TODO, length: 7, encoding: ascii, unit: A, writable: true}
+      θa: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      θb: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      θc: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      QUaUb: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      QUaUc: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      Fre: {address: TODO, length: 7, encoding: ascii, unit: Hz, writable: true}
+      # 枚举 / 整数参数:编码是 uint 而不是浮点(3P4W ↔ 某个整数,对照在 import 侧)。
+      接线方式: {address: TODO, length: 2, encoding: uint, writable: true}
+      MeterConst: {address: TODO, length: 2, encoding: uint, writable: true}
+
+  # Modbus RTU 电表:点表项 = 寄存器地址 / 字节数 / 编码 / 倍率 / 字节序。
+  # 换一个同规约的型号(地址或倍率不同)只需要在这上面加一段 yaml,零 Python 文件。
+  # 读法走点表驱动的通用读取路径,驱动里没有"电表"这两个字的特例分支。
+  dtsd1352_modbus:
+    type: meter
+    protocol: modbus_rtu
+    criteria: meter_220v
+    capabilities: [有功电量, 电压]
+    # 额定值声明:条款里的符号 `Ua=Un` / `Ia=In` / `Fre=Hz` 落到这三个名字上,值按每台
+    # 实例的铭牌给(不同被试品 220 / 3×220/380 / 50Hz / 60Hz,所以不是型号常数)。
+    # `rated_phase_voltage_v` 是**相电压**:三相四线表 Ua=Un 填 220,填 380 会把台架设成
+    # 线电压而报表一切正常。DL/T 645 的 Ib(基本电流)是另一个量,不并进 rated_current_a。
+    device_params: [rated_phase_voltage_v, rated_current_a, rated_freq_hz]
+    point_table:
+      有功电量: {address: 0, length: 4, encoding: uint, scale: 0.01, unit: kWh}
+      电压: {address: 2, length: 2, encoding: uint, scale: 0.1, unit: V}
+      # writable: true 是平台侧的许可:只有显式声明过可写的点才允许写。
+      # 这个点上真能写什么值由设备自己定(它是设备的计量模式枚举),点表只管地址与倍率。
+      有功计量模式: {address: 3, length: 2, encoding: uint, writable: true}
+
+  # DL/T645 电表:点表项 address 是 4 字节数据标识(DI)。
+  # 补进来的两个可写点**只来自 configs/import/writes.yaml 已有的 DI + 类型 + 长度**:
+  #   04000101 Date  4 字节 YYMMDDWW  → BCD,低字节先发(writes.yaml:fields.04000101)
+  #   04000102 Time  3 字节 hhmmss    → BCD,低字节先发(writes.yaml:fields.04000102)
+  # 表地址 04000401 / 红外与通信口速率特征字 04000701–04000705 **不补**:上游图例只说
+  # 类型是 String、没给每字节怎么编(legend.String.layout = null),而写路径只支持数值编码
+  # (protocol/values.py 的 ENCODERS 没有 string/ascii)。没有编码就不猜一个。
+  # 有功计量模式 / 通信模式也不补:writes.yaml 里没有对应 DI。
+  dlt645_meter:
+    type: meter
+    protocol: dlt645
+    criteria: meter_220v
+    capabilities: [有功电量, 电压]
+    point_table:
+      有功电量: {address: '00010000', length: 4, encoding: bcd, scale: 0.01, byteorder: little, unit: kWh}
+      电压: {address: '02010100', length: 2, encoding: bcd, scale: 0.1, byteorder: little, unit: V}
+      时钟日期: {address: '04000101', length: 4, encoding: bcd, byteorder: little, writable: true}
+      时钟时间: {address: '04000102', length: 3, encoding: bcd, byteorder: little, writable: true}
+
+# 设置类条款:每条一式"写 N 个参数 → 读回 → 判相等",没有因果链。
+# 它们不写进 tests_scenario/:用例侧只有一个函数(tests/test_setting_cases.py),
+# 这里一条条款一行;新增一条 = 加几行 yaml,不用新建文件。
+# 写法:型号 → 条款编号 → {clause, steps}。步骤词表四个词:自动回环 {write, value, expect},
+# 人工操作 {manual, expect}(expect 是文字说明,不是机读判据)。
+# 条款开头那段重复的台架设定写成 bench: {台架量名: 值} —— 它是"让表能测"的前提,
+# 不是被测行为,所以不进 steps、不参与判定(ADR 0006)。量名过与导入器同一份
+# configs/import/params.yaml,值与台架型号点表的 encoding 相容;拼错 / 台架没有那个量 /
+# 值类型不对,都在装配前报错并指出是哪个量。
+# 不支持条件、循环、引用前一步读数(有分支的条款拆成两条,或者归场景层)。
+# 装配前校验:型号必须存在、条款编号全清单唯一、write 的键必须是该型号点表里
+# writable: true 的点、value 必须与那个点的 encoding / length 相容(BCD 点的密码 / 时钟
+# 写成十进制串就行,补几位前导零由点的 length 定)、expect 必须是单个值(区间归判据集)、
+# manual 步骤不能再写 write / value。
+# clause 沿用仓库里 DL/T 645 4.5.2(参数设置回读);三条自动样板取自上游
+# test_M_00_00_10_000008_02 / test_M_00_00_10_000001_06 / test_M_00_00_0A_000008_01,
+# 人工那条取自票 36 的实测样例(上游 17% 的步骤是“人工操作”)。
+# 编号沿用、步数沿用、取值换成这台型号可写的那个 16 位寄存器(上游写的是 DL/T 645
+# 表里的 32 位/编码字符串,在这个型号的点表里没有对应可写点)。
+setting_cases:
+  dtsd1352_modbus:
+    # 上游 150 行:desk 设定 + 2 次 universalSet(写 → 回读比对)
+    M_00_00_10_000008_02:
+      clause: "DLT645-4.5.2"
+      steps:
+        - {write: 有功计量模式, value: "1600", expect: "1600"}
+        - {write: 有功计量模式, value: "1601", expect: "1601"}
+    # 上游 169 行:3 次 universalSet,同一个点连着写三个值
+    M_00_00_10_000001_06:
+      clause: "DLT645-4.5.2"
+      steps:
+        - {write: 有功计量模式, value: "1601", expect: "1601"}
+        - {write: 有功计量模式, value: "0", expect: "0"}
+        - {write: 有功计量模式, value: "1600", expect: "1600"}
+    # 上游 154 行:5 次 universalSet,同一个点连续写五个值(时钟时区那一条)
+    M_00_00_0A_000008_01:
+      clause: "DLT645-4.5.2"
+      steps:
+        - {write: 有功计量模式, value: "0", expect: "0"}
+        - {write: 有功计量模式, value: "360", expect: "360"}
+        - {write: 有功计量模式, value: "720", expect: "720"}
+        - {write: 有功计量模式, value: "1600", expect: "1600"}
+        - {write: 有功计量模式, value: "1601", expect: "1601"}
+    # 人工操作步:上游 17% 的步骤是这一档(切换上位机模式 / 目视看液晶 / 拔插卡)。
+    # 平台只能跑自动那几步:按清单顺序先执行前面的自动步骤(失败就是设备不合格,不许被 skip
+    # 掩盖),碰到人工步骤才 skip(理由写明已执行几步、还剩几步待确认),证据里留一条
+    # confirmed: null 的占位等操作员回填 —— 既不默认判过,也不算设备不合格。
+    M_00_00_13_000101_01:
+      clause: "DLT645-4.5.2"
+      steps:
+        - {write: 有功计量模式, value: "1601", expect: "1601"}
+        - {manual: "切换上位机通信模式为 HDLC", expect: "由操作员确认已切换"}
+    # 上游 4189 行:台架前置 + 3 次写/判断。那条条款开头的「调整台体」块就是本票要的
+    # bench: 前置:12 行设定在 105 条条款前面一字不差,写进 steps 会让每条重复一遍,
+    # 而且它不是被测行为(ADR 0006)。执行顺序:连接 → bench: 下发(周边设备驱动)→
+    # steps → 回读判定;证据里先有 bench_setup 再有一条条 reading。
+    #
+    # 两处与上游原文不同,理由写在下面,不是静默替换:
+    #   1. 上游写的是 `Ua=Un` / `Fre=Hz` / `接线方式=与表型一致` —— 三个符号值。这里按本台架
+    #      的额定落数(220V / 50Hz),接线方式**不写**:它的枚举名 → 整数编码在
+    #      configs/import/params.yaml 里还是 null,拿 0 顶就是编一个假编码。导入侧对这两类
+    #      取值报"映射缺口",不会自己替它落数。
+    #   2. 那条条款的写步骤是「时钟 / 参数」,这个型号的点表里还没有对应可写点(与上面三条
+    #      样板同一个理由),所以写步骤落在它唯一的可写点上。
+    M_00_00_13_0002FF_61:
+      clause: "DLT645-4.5.2"
+      bench:
+        Ua: 220
+        Ub: 220
+        Uc: 220
+        Ia: 5
+        Ib: 5
+        Ic: 5
+        θa: 60
+        θb: 60
+        θc: 60
+        QUaUb: 120
+        QUaUc: 240
+        Fre: 50
+      steps:
+        - {write: 有功计量模式, value: "1601", expect: "1601"}
+
+# 适用矩阵:型号 → 该型号实际跑哪些用例(用例编号前缀 或 tag:<标签>)。
+# 决定权在测试工程师手里:改矩阵就改变了某型号跑哪些测试项,不用碰代码。
+# 不在矩阵里出现的型号 = 不受限,它的用例全跑(漏测比多跑几条危险)。
+# 引用了不存在的编号/标签会在收集阶段报错,而不是静默少跑几根用例。
+# 按设备参数化的用例还要求:有 @case 身份,且至少一个型号的矩阵覆盖它——
+# 新加一条契约用例却忘了打 tag 时,收集阶段直接报错,不会静默变成全绿。
+test_matrix:
+  inverter_pv_series: [tag:一致性]
+  battery_lfp_series: [tag:一致性]
+  dtsd1352_modbus: [tag:一致性, M_00_00_01_000002]
+
+# 设备实例:只写 id、型号名、接入位置和设备自己的参数。点表/能力/判据集不在这里重复。
+devices:
+  - id: inv_01
+    model: inverter_pv_series
+    access: tcp
+    mode: simulator          # 改成 real 即可切换到真实 TCP 逆变器,驱动代码完全不用动
+    name: "逆变器-产线A-01"
+    rated_power_w: 5000
+    connection:
+      host: 192.168.1.50
+      port: 502
+      simulated_response: "3200.5 230.1 50.0"
+
+  # 同型号的第二个实例——加这一条配置,上面那份点表一个字都不用重复,
+  # 下面 tests/test_inverter.py 里所有通用契约测试会自动对它也跑一遍。
+  - id: inv_03
+    model: inverter_pv_series
+    access: tcp
+    mode: simulator
+    name: "逆变器-产线A-03"
+    rated_power_w: 5000
+    connection:
+      host: 192.168.1.52
+      port: 502
+      simulated_response: "4500.0 229.8 50.1"
+
+  - id: bat_01
+    model: battery_lfp_series
+    access: serial
+    mode: simulator
+    name: "电池组-产线A-01"
+    capacity_ah: 100
+    connection:
+      port: /dev/ttyUSB0
+      baudrate: 9600
+      simulated_response: "76.5 51.2 -3.4"
+
+  # 示例:经工控机网关转发接入的逆变器——同一个型号,只换接入方式。
+  # inverter_driver.py / domain/inverter.py 一行代码都没有改。
+  - id: inv_02_via_ipc
+    model: inverter_pv_series
+    access: gateway_ssh
+    mode: simulator          # 真实环境改成 real:会 SSH 登录工控机,转发到它本地的 CAN/串口
+    name: "逆变器-产线B-经工控机接入"
+    rated_power_w: 8000
+    connection:
+      gateway_host: 10.0.0.5
+      gateway_user: test
+      gateway_key_path: ~/.ssh/id_rsa
+      # gateway_known_hosts: ~/.ssh/known_hosts   # 配了才校验网关主机密钥;未配 = 不校验(见 README)
+      local_bus: can0
+      simulated_response: "6100.0 231.5 49.9"
+
+  # Modbus RTU 电表:读法由点表决定,协议细节在 protocol/modbus_rtu.py。
+  # mode: simulator 时,connection.simulated_registers 是模拟从站内存里的寄存器
+  # (地址 → 16 位值);改成 real 走同一条 serial 传输,驱动代码一行不用动。
+  # bus_address 是 Modbus 从站地址(1–247),缺了装配前就报错。
+  - id: meter_01
+    model: dtsd1352_modbus
+    access: serial
+    mode: simulator
+    name: "电表-台区A-01"
+    bus_address: 1
+    # 额定值必须按这台表的铭牌填。`TODO` 是占位哨兵(与台架点表的 `address: TODO` 同一惯例),
+    # 不是 220/50:导入侧见到 TODO 直接拒收并点名型号+参数,不拿默认值兜底 ——
+    # 猜错了台架会按错的额定值跑,而报表里看不出来。
+    rated_phase_voltage_v: TODO   # 相电压(Ua=Un),不是线电压
+    rated_current_a: TODO         # 额定电流(Ia=In)
+    rated_freq_hz: TODO           # 额定频率(Fre=Hz)
+    connection:
+      port: /dev/ttyUSB1
+      baudrate: 9600
+      simulated_registers:
+        0: 0x0001      # 有功电量 高字
+        1: 0xE240      # 有功电量 低字 → 0x0001E240 × 0.01 = 1234.56 kWh
+        2: 2300        # 电压 → 2300 × 0.1 = 230.0 V
+        3: 0           # 有功计量模式:可写点,写入后同一实例再读能读到新值
+
+  # 周边设备:role: support。上面几台被测设备共用这一台电网模拟器——
+  # 清单里只声明一个实例,用例按 id 取到的是同一个对象。
+  # 它在装配时先连接(CompositionRoot.connect_support);连不上 =
+  # 结论"测试无效"(skip),不是被测设备不合格。契约测试也不对它展开。
+  # initial_setpoint 是收尾要恢复到的初始设定:每条用例结束后与整轮结束前,台架都回到
+  # 这里 —— 一条用例把台架设到 0V 之后失败,下一条用例读到的仍然是 230V/50Hz。
+  # 恢复失败 = 测试无效(不是设备不合格)。只有 role: support 能声明它。
+  - id: grid_sim_01
+    model: grid_simulator_3ph
+    role: support
+    initial_setpoint: {voltage_v: 230, freq_hz: 50}
+    access: tcp
+    mode: simulator
+    name: "电网模拟器-台架1"
+    connection:
+      host: 192.168.1.60
+      port: 502
+      # 三相台架模拟:SET_GRID3 量名=值 的设定按设定回;单相 SET_GRID 仍回下面那一行。
+      simulated_grid: true
+      simulated_response: "230.0 50.0"

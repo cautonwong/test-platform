@@ -1,0 +1,146 @@
+# 13通信 里 5 个可写参数:上游三重字典逐个查过什么、查到什么、还缺什么。
+#
+# 这张表就是「要资料清单」的数据形态(docs/upstreams.md 里是给人读的同一份东西)。
+# 它存在的理由:票 43 原以为这 5 项"上游根本不存在",复核后发现**名字**不存在、**东西**在
+# —— DL/T645 字典里它们叫别的名字(时间 / 通信地址 / 通信速率特征字),DI 是有的。
+# 所以清单从"要地址"变成"地址有,要生效性",这比"缺手册"能拿去买东西。
+#
+# 票 44 再降一项:写入格式也一直在上游(common/p645dict.py 的 tuple + 文件头图例),
+# 已落成 configs/import/writes.yaml(DI / 长度 / 类型 / 图例换算 + 行号)。
+# 清单因此**只剩三项**:写后是否生效 / 密级含义(tuple 第 9 位的 '96'、'03',疑似权限等级,
+# 含义未证实)/ 通信模式。不许把 "写入格式" 再列回缺口,也不许把 '96'/'03' 当密码去实现。
+#
+# 每条 found 都带 source: "<上游相对路径>:<行号>",校验:
+#   python tools/check_import_sources.py --upstream <上游目录>
+# upstream_dicts + name_needle 是**反向断言**:条款里的那个字面名在上游字典里必须 0 命中 ——
+# 上游改版后真加了,校验会红,提醒回来重新提取,而不是让这张表慢慢变成谎话。
+#
+# 不许把这些 DI 直接填成台架地址或 Modbus 寄存器地址:
+#   DL/T645 DI ≠ DLMS OBIS ≠ Modbus 寄存器,三套编号体系;本仓 dtsd1352_modbus 是 Modbus,
+#   它的寄存器只能来自厂家寄存器表(docs/upstreams.md「哪些能用、哪些要等手册」)。
+
+# 这 5 个文件是"名字反查"的全部范围:上游把可写参数都写在这几份字典里。
+# 每个参数的 name_needle(条款里的写法)在这 5 份里都必须 0 命中 —— 上游真加了,校验红。
+upstream_dicts:
+  - common/obisDict.py
+  - common/_meterObisDict.py
+  - common/p645dict.py
+  - common/p698Dict.py
+  - common/malDict.py
+
+# 阻塞数去重(数字来自 build/coverage.md 那次跑:条款 105 / 进 consistency 10 / 场景层 87 / 结构异常 8)
+#   单行 only_this      = 只缺这一项、其它映射都对得上的条款数
+#   单行 blocked_with   = 这一项出现在映射缺口里(不管同时还缺别的)的条款数
+#   并集 union          = 五项 blocked_with 的并集,**不是**相加
+#   整表 sheet_union    = 五项在 105 条里"被提到"的条款并集(场景层算在内)
+#
+# 每个参数下的 appear_in_clauses / occurrences 是"条款里出现"(写、读、人工都算);
+# coverage.md 的映射缺口只算写/读步骤 —— 所以 通信模式 这里 30 次、报表里 19 次,
+# 两个数都对,口径不同。阻塞数一律按报表口径(映射缺口)。
+blocking:
+  consistency_clauses: 10
+  only_this: {通信模式: 0, 红外通信波特率: 0, RS485通信波特率: 0, 时钟: 0, 表地址: 0}
+  blocked_with: {通信模式: 0, 红外通信波特率: 0, RS485通信波特率: 0, 时钟: 4, 表地址: 0}
+  union: 4
+  union_clauses:
+    - M_00_00_13_000102_15
+    - M_00_00_13_000109_71
+    - M_00_00_13_0002FF_61
+    - M_00_00_13_0002FF_62
+  # 这 4 条每条同时还缺 4–11 个别的参数名 + 5–8 个台架取值,所以单独补齐这 5 项解锁 0 条
+  union_clauses_with_no_other_gap: 0
+  unlock_if_all_five_filled: 0
+  sheet_clauses: 105
+  sheet_clause_sum: 129   # 五项"被提到"的条款数相加(有重叠,不是总数)
+  sheet_union: 73         # 并集:105 条里有 73 条至少提到五项之一
+  note: >-
+    相加 129 / 并集 73 的差就是重叠:40 条同时提到两项以上(通信模式∩时钟 21、红外∩时钟 16、
+    RS485∩时钟 15、通信模式∩红外 16、时钟∩表地址 4),16 条提到三项。拿 129 去谈解锁量会
+    把同一条条款卖三次。
+
+params:
+  通信模式:
+    name_needle: 通信模式
+    appear_in_clauses: 28      # consistency 1 / 场景层 25 / 结构异常 2
+    occurrences: 30
+    found: []
+    found_note: >-
+      *.py 全仓 0 命中;唯一出现是 common/pypack/pyproto/README.md:33 的一句注释(示例里
+      connection = ConnectionModes.HDLC)—— 那是链路层连接方式,不是表内参数。
+    near_miss:
+      - source: "common/pypack/pyproto/README.md:33"
+        expect: "# 通信模式"
+        note: 全仓唯一出现这四个字的地方,是一句示例注释 —— 下面是 connection = ConnectionModes.HDLC,不是表参数。
+      - source: "common/pypack/pyproto/dlms/link/connection_modes.py:14"
+        expect: "HDLC = 0x01"
+        note: 上游客户端把"通信模式"当链路层选择(EMODE 0x00 / HDLC 0x01),这个枚举是客户端拨号用的,不是表里一个可写点。
+    needs_manual: [地址(DI 或寄存器), 编码(位定义)]
+    have: []
+    still_missing: [地址, 编码]
+    found_note_44: >-
+      票 44:p645dict 里没有它,所以连"长度 / 类型 / 图例换算"都无处可反查 —— 写作格式这一项
+      对它不是"已解决",是"没有对象"。
+
+  红外通信波特率:
+    name_needle: 红外通信波特率
+    appear_in_clauses: 16      # 全部在场景层(14)或结构异常(2),consistency 档 0
+    occurrences: 16
+    found:
+      - {source: "common/p645dict.py:80840", expect: "('04000701', 256, 1, 'String'", address: "04000701", name_upstream: 调制型红外光口通信速率特征字, length: 1, type: String}
+      - {source: "common/p645dict.py:80841", expect: "('04000702', 256, 1, 'String'", address: "04000702", name_upstream: 接触式红外光口通信速率特征字, length: 1, type: String}
+    near_miss:
+      - source: "common/obisDict.py:6441"
+        expect: "本地通信时表收到切换波特率帧后延迟等待再发送的时间"
+        note: 这是"切波特率帧之后等多久再发"的时间参数,不是波特率本身。名字里带波特率,别拿它顶。
+      - source: "common/pypack/pyproto/dlms/link/emode.py:24"
+        expect: "BaudRates: list = [ 300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 ]"
+        note: E-mode 协商用的波特率表(下标 = 收到的标志位 - 0x30)。这是**链路协商**的编码,不是表内速率特征字的取值表。
+    needs_manual: [速率特征字取值表(哪个数=哪个波特率), 写回是否立即生效, 切换后是否需要重新协商/重连]
+    have: [地址(DI 04000701/04000702), 编码(1 字节 String), 写入格式(见 writes.yaml:1 字节定长字符串)]
+    still_missing: [特征字取值表, 生效性, 切换后的重连规则]
+
+  RS485通信波特率:
+    name_needle: RS485通信波特率
+    appear_in_clauses: 15      # 含 RS232通信波特率 6 条:同一个族,都是"通信口速率"
+    occurrences: 15
+    found:
+      - {source: "common/p645dict.py:80842", expect: "('04000703', 256, 1, 'String'", address: "04000703", name_upstream: 通信口1通信速率特征字, length: 1, type: String}
+      - {source: "common/p645dict.py:80843", expect: "('04000704', 256, 1, 'String'", address: "04000704", name_upstream: 通信口2通信速率特征字, length: 1, type: String}
+      - {source: "common/p645dict.py:80844", expect: "('04000705', 256, 1, 'String'", address: "04000705", name_upstream: 通信口3通信速率特征字, length: 1, type: String}
+    needs_manual: [通信口1/2/3 与 RS485/RS232 的对应关系, 速率特征字取值表, 写回是否立即生效]
+    have: [地址(DI 04000703–04000705), 编码(1 字节 String), 写入格式(见 writes.yaml:1 字节定长字符串)]
+    still_missing: [口序对应关系, 特征字取值表, 生效性]
+    found_note: >-
+      上游只写"通信口1/2/3",没有说哪一个是 RS485。条款里的 RS485通信波特率 与 RS232通信波特率
+      各自对应哪个口,手册不给就只能实测。
+
+  时钟:
+    name_needle: 电表时钟
+    appear_in_clauses: 66      # consistency 4 / 场景层 56 / 结构异常 6;条款里两种写法:电表时钟 96 次、时钟 16 次
+    occurrences: 112
+    found:
+      - {source: "common/p645dict.py:4916", expect: "('04000102', 256, 3, 'Time'", address: "04000102", name_upstream: 计量单元参变量时间, length: 3, type: Time}
+      - {source: "common/p645dict.py:4915", expect: "('04000101', 256, 4, 'Date'", address: "04000101", name_upstream: 计量单元参变量日期及星期, length: 4, type: Date}
+      - {source: "common/obisDict.py:11052", expect: "'时钟:clock_base':('8', '0-0:1.0.0.255'", address: "0-0:1.0.0.255", name_upstream: 时钟(clock_base), length: null, type: DLMS class 8}
+      - {source: "common/_meterObisDict.py:34077", expect: "'8#0.0.1.0.0.255#2': '时钟:time'", address: "0-0:1.0.0.255", name_upstream: 时钟:time, length: null, type: DLMS class 8 attribute 2}
+    near_miss:
+      - source: "common/malDict.py:93"
+        expect: "'SetRtcDateTimeAdjustment'"
+        note: 唯一的写路径是 .NET MAL 方法名(SetRtcDateTimeAdjustment),没有 DI、没有长度、没有编码 —— 真正的写定义在服务端 dll 里。
+    needs_manual: [写回是否立即生效, 夏令时/时区是否同帧, 密级含义(tuple 第 9 位 '96',疑似权限等级,未证实)]
+    have: [地址(DI 04000101+04000102 / DLMS 0-0:1.0.0.255), 编码(3 字节 Time + 4 字节 Date / DLMS class 8), 写入格式(writes.yaml:Date=YYMMDDWW 4 字节 BCD、Time=hhmmss 3 字节 BCD、DateWeekTime=YYMMDDWWhhmmss 7 字节)]
+    still_missing: [生效性, 夏令时/时区, 密级含义]
+
+  表地址:
+    name_needle: 表地址
+    appear_in_clauses: 4       # 表号 9 次 + RS485/RS232 HDLC 物理通信地址 28 次,全在场景层(3)或结构异常(1)
+    occurrences: 37
+    found:
+      - {source: "common/p645dict.py:4919", expect: "('04000401', 256, 6, 'String'", address: "04000401", name_upstream: 计量单元参变量通信地址, length: 6, type: String}
+      - {source: "common/p698Dict.py:34601", expect: "通信地址参数", address: "4001", name_upstream: 通信地址参数, length: 2, type: octet_string}
+    needs_manual: [写回是否立即生效(改完链路就断,当场要不要重连), 是否需要通信密码/安全认证, 密级含义(tuple 第 9 位 '03',疑似权限等级,未证实)]
+    have: [地址(DI 04000401 / 698 OI 4001), 编码(6 字节 String / octet_string), 写入格式(writes.yaml:6 字节定长字符串,每字节两位十进制、低字节先发)]
+    still_missing: [生效性, 是否需密码/认证, 密级含义]
+    found_note: >-
+      生效性对这一项最要紧:改完地址链路就断了,写回是否立即生效决定用例要不要当场重连。
+      上游 13通信 的"表号"用例正是改完再连,所以这一条没有手册不能猜。

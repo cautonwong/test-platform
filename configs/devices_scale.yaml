@@ -1,0 +1,2776 @@
+# 由 tools/gen_scale_manifest.py 生成,不要手改:改规模就改脚本再重跑。
+# P0 规模验收清单:200 台被测设备(4 型号 × 50)+ 3 台终端 × 每台 20 块表 + 2 台周边设备。
+# 不进默认 testpaths、不是默认 --device-config,默认套件不受影响。
+# 跑法: python -m pytest -q --device-config configs/devices_scale.yaml
+criteria_profiles:
+  grid_50hz:
+  - quantity: grid_freq_hz
+    min: 45
+    max: 55
+  - quantity: grid_voltage_v
+    gt: 0
+  - quantity: output_power_w
+    min: 0
+    max:
+      rated_power_w: 1.1
+  - quantity: output_power_w
+    max:
+      rated_power_w: 0.9
+    severity: warn
+  battery_default:
+  - quantity: voltage_v
+    gt: 0
+  - quantity: soc_percent
+    min: 10
+    severity: warn
+  meter_220v:
+  - quantity: 电压
+    min: 198
+    max: 242
+  - quantity: 有功电量
+    min: 0
+models:
+  inverter_pv_series:
+    type: inverter
+    protocol: vendor_ascii
+    criteria: grid_50hz
+    capabilities:
+    - 有功功率
+    - 电压
+    - 频率
+    device_params:
+    - rated_power_w
+    point_table:
+      有功功率:
+        address: 0
+        length: 8
+        encoding: ascii
+        unit: W
+      电压:
+        address: 1
+        length: 7
+        encoding: ascii
+        unit: V
+      频率:
+        address: 2
+        length: 7
+        encoding: ascii
+        unit: Hz
+  battery_lfp_series:
+    type: battery
+    protocol: vendor_ascii
+    criteria: battery_default
+    capabilities:
+    - SOC
+    - 电压
+    - 电流
+    device_params:
+    - capacity_ah
+    point_table:
+      SOC:
+        address: 0
+        length: 6
+        encoding: ascii
+        unit: '%'
+      电压:
+        address: 1
+        length: 7
+        encoding: ascii
+        unit: V
+      电流:
+        address: 2
+        length: 7
+        encoding: ascii
+        unit: A
+  grid_simulator_3ph:
+    type: grid_simulator
+    protocol: vendor_ascii
+    capabilities:
+    - Ua
+    - Ub
+    - Uc
+    - Ia
+    - Ib
+    - Ic
+    - θa
+    - θb
+    - θc
+    - QUaUb
+    - QUaUc
+    - Fre
+    - 接线方式
+    - MeterConst
+    point_table:
+      Ua:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: V
+        writable: true
+      Ub:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: V
+        writable: true
+      Uc:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: V
+        writable: true
+      Ia:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: A
+        writable: true
+      Ib:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: A
+        writable: true
+      Ic:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: A
+        writable: true
+      θa:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: °
+        writable: true
+      θb:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: °
+        writable: true
+      θc:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: °
+        writable: true
+      QUaUb:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: °
+        writable: true
+      QUaUc:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: °
+        writable: true
+      Fre:
+        address: TODO
+        length: 7
+        encoding: ascii
+        unit: Hz
+        writable: true
+      接线方式:
+        address: TODO
+        length: 2
+        encoding: uint
+        writable: true
+      MeterConst:
+        address: TODO
+        length: 2
+        encoding: uint
+        writable: true
+  dtsd1352_modbus:
+    type: meter
+    protocol: modbus_rtu
+    criteria: meter_220v
+    capabilities:
+    - 有功电量
+    - 电压
+    point_table:
+      有功电量:
+        address: 0
+        length: 4
+        encoding: uint
+        scale: 0.01
+        unit: kWh
+      电压:
+        address: 2
+        length: 2
+        encoding: uint
+        scale: 0.1
+        unit: V
+      有功计量模式:
+        address: 3
+        length: 2
+        encoding: uint
+        writable: true
+  dlt645_meter:
+    type: meter
+    protocol: dlt645
+    criteria: meter_220v
+    capabilities:
+    - 有功电量
+    - 电压
+    point_table:
+      有功电量:
+        address: '00010000'
+        length: 4
+        encoding: bcd
+        scale: 0.01
+        byteorder: little
+        unit: kWh
+      电压:
+        address: '02010100'
+        length: 2
+        encoding: bcd
+        scale: 0.1
+        byteorder: little
+        unit: V
+  dlt645_terminal:
+    type: terminal
+    protocol: dlt645
+    capabilities:
+    - 上电运行时间
+    point_table:
+      上电运行时间:
+        address: 02800085
+        length: 4
+        encoding: int
+        scale: 1
+        byteorder: little
+        unit: s
+devices:
+- id: inv_scale_001
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-001
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.1
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_002
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-002
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.2
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_003
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-003
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.3
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_004
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-004
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.4
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_005
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-005
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.5
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_006
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-006
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.6
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_007
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-007
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.7
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_008
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-008
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.8
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_009
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-009
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.9
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_010
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-010
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.10
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_011
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-011
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.11
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_012
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-012
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.12
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_013
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-013
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.13
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_014
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-014
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.14
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_015
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-015
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.15
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_016
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-016
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.16
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_017
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-017
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.17
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_018
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-018
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.18
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_019
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-019
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.19
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_020
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-020
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.20
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_021
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-021
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.21
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_022
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-022
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.22
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_023
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-023
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.23
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_024
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-024
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.24
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_025
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-025
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.25
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_026
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-026
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.26
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_027
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-027
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.27
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_028
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-028
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.28
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_029
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-029
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.29
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_030
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-030
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.30
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_031
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-031
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.31
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_032
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-032
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.32
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_033
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-033
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.33
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_034
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-034
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.34
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_035
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-035
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.35
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_036
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-036
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.36
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_037
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-037
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.37
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_038
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-038
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.38
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_039
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-039
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.39
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_040
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-040
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.40
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_041
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-041
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.41
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_042
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-042
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.42
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_043
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-043
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.43
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_044
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-044
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.44
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_045
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-045
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.45
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_046
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-046
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.46
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_047
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-047
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.47
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_048
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-048
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.48
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_049
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-049
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.49
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: inv_scale_050
+  model: inverter_pv_series
+  access: tcp
+  mode: simulator
+  name: 逆变器-规模-050
+  rated_power_w: 5000
+  connection:
+    host: 192.168.0.50
+    port: 502
+    simulated_response: 3200.5 230.1 50.0
+- id: bat_scale_001
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-001
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB1
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_002
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-002
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB2
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_003
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-003
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB3
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_004
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-004
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB4
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_005
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-005
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB5
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_006
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-006
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB6
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_007
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-007
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB7
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_008
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-008
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB8
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_009
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-009
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB9
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_010
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-010
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB10
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_011
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-011
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB11
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_012
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-012
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB12
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_013
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-013
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB13
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_014
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-014
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB14
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_015
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-015
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB15
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_016
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-016
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB16
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_017
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-017
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB17
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_018
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-018
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB18
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_019
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-019
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB19
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_020
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-020
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB20
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_021
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-021
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB21
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_022
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-022
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB22
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_023
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-023
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB23
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_024
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-024
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB24
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_025
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-025
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB25
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_026
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-026
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB26
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_027
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-027
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB27
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_028
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-028
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB28
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_029
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-029
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB29
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_030
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-030
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB30
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_031
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-031
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB31
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_032
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-032
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB32
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_033
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-033
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB33
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_034
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-034
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB34
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_035
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-035
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB35
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_036
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-036
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB36
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_037
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-037
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB37
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_038
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-038
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB38
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_039
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-039
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB39
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_040
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-040
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB40
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_041
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-041
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB41
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_042
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-042
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB42
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_043
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-043
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB43
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_044
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-044
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB44
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_045
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-045
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB45
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_046
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-046
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB46
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_047
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-047
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB47
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_048
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-048
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB48
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_049
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-049
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB49
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: bat_scale_050
+  model: battery_lfp_series
+  access: serial
+  mode: simulator
+  name: 电池组-规模-050
+  capacity_ah: 100
+  connection:
+    port: /dev/ttyUSB50
+    baudrate: 9600
+    simulated_response: 76.5 51.2 -3.4
+- id: mbus_scale_001
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-001
+  bus_address: 1
+  connection:
+    port: /dev/ttyS1
+    baudrate: 9600
+    simulated_registers: &id001
+      0: 1
+      1: 57920
+      2: 2300
+      3: 0
+- id: mbus_scale_002
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-002
+  bus_address: 2
+  connection:
+    port: /dev/ttyS2
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_003
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-003
+  bus_address: 3
+  connection:
+    port: /dev/ttyS3
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_004
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-004
+  bus_address: 4
+  connection:
+    port: /dev/ttyS4
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_005
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-005
+  bus_address: 5
+  connection:
+    port: /dev/ttyS5
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_006
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-006
+  bus_address: 6
+  connection:
+    port: /dev/ttyS6
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_007
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-007
+  bus_address: 7
+  connection:
+    port: /dev/ttyS7
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_008
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-008
+  bus_address: 8
+  connection:
+    port: /dev/ttyS8
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_009
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-009
+  bus_address: 9
+  connection:
+    port: /dev/ttyS9
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_010
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-010
+  bus_address: 10
+  connection:
+    port: /dev/ttyS10
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_011
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-011
+  bus_address: 11
+  connection:
+    port: /dev/ttyS11
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_012
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-012
+  bus_address: 12
+  connection:
+    port: /dev/ttyS12
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_013
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-013
+  bus_address: 13
+  connection:
+    port: /dev/ttyS13
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_014
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-014
+  bus_address: 14
+  connection:
+    port: /dev/ttyS14
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_015
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-015
+  bus_address: 15
+  connection:
+    port: /dev/ttyS15
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_016
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-016
+  bus_address: 16
+  connection:
+    port: /dev/ttyS16
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_017
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-017
+  bus_address: 17
+  connection:
+    port: /dev/ttyS17
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_018
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-018
+  bus_address: 18
+  connection:
+    port: /dev/ttyS18
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_019
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-019
+  bus_address: 19
+  connection:
+    port: /dev/ttyS19
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_020
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-020
+  bus_address: 20
+  connection:
+    port: /dev/ttyS20
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_021
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-021
+  bus_address: 21
+  connection:
+    port: /dev/ttyS21
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_022
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-022
+  bus_address: 22
+  connection:
+    port: /dev/ttyS22
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_023
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-023
+  bus_address: 23
+  connection:
+    port: /dev/ttyS23
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_024
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-024
+  bus_address: 24
+  connection:
+    port: /dev/ttyS24
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_025
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-025
+  bus_address: 25
+  connection:
+    port: /dev/ttyS25
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_026
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-026
+  bus_address: 26
+  connection:
+    port: /dev/ttyS26
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_027
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-027
+  bus_address: 27
+  connection:
+    port: /dev/ttyS27
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_028
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-028
+  bus_address: 28
+  connection:
+    port: /dev/ttyS28
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_029
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-029
+  bus_address: 29
+  connection:
+    port: /dev/ttyS29
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_030
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-030
+  bus_address: 30
+  connection:
+    port: /dev/ttyS30
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_031
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-031
+  bus_address: 31
+  connection:
+    port: /dev/ttyS31
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_032
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-032
+  bus_address: 32
+  connection:
+    port: /dev/ttyS32
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_033
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-033
+  bus_address: 33
+  connection:
+    port: /dev/ttyS33
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_034
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-034
+  bus_address: 34
+  connection:
+    port: /dev/ttyS34
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_035
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-035
+  bus_address: 35
+  connection:
+    port: /dev/ttyS35
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_036
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-036
+  bus_address: 36
+  connection:
+    port: /dev/ttyS36
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_037
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-037
+  bus_address: 37
+  connection:
+    port: /dev/ttyS37
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_038
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-038
+  bus_address: 38
+  connection:
+    port: /dev/ttyS38
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_039
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-039
+  bus_address: 39
+  connection:
+    port: /dev/ttyS39
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_040
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-040
+  bus_address: 40
+  connection:
+    port: /dev/ttyS40
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_041
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-041
+  bus_address: 41
+  connection:
+    port: /dev/ttyS41
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_042
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-042
+  bus_address: 42
+  connection:
+    port: /dev/ttyS42
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_043
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-043
+  bus_address: 43
+  connection:
+    port: /dev/ttyS43
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_044
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-044
+  bus_address: 44
+  connection:
+    port: /dev/ttyS44
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_045
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-045
+  bus_address: 45
+  connection:
+    port: /dev/ttyS45
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_046
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-046
+  bus_address: 46
+  connection:
+    port: /dev/ttyS46
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_047
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-047
+  bus_address: 47
+  connection:
+    port: /dev/ttyS47
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_048
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-048
+  bus_address: 48
+  connection:
+    port: /dev/ttyS48
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_049
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-049
+  bus_address: 49
+  connection:
+    port: /dev/ttyS49
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mbus_scale_050
+  model: dtsd1352_modbus
+  access: serial
+  mode: simulator
+  name: 电表-Modbus-规模-050
+  bus_address: 50
+  connection:
+    port: /dev/ttyS50
+    baudrate: 9600
+    simulated_registers: *id001
+- id: mb645_scale_001
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-001
+  bus_address: '000000001001'
+  connection:
+    port: /dev/ttyS101
+    baudrate: 2400
+    simulated_645:
+      '000000001001': &id002
+        '02010100': '0023'
+        '00010000': '56341200'
+- id: mb645_scale_002
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-002
+  bus_address: '000000001002'
+  connection:
+    port: /dev/ttyS102
+    baudrate: 2400
+    simulated_645:
+      '000000001002': *id002
+- id: mb645_scale_003
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-003
+  bus_address: '000000001003'
+  connection:
+    port: /dev/ttyS103
+    baudrate: 2400
+    simulated_645:
+      '000000001003': *id002
+- id: mb645_scale_004
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-004
+  bus_address: '000000001004'
+  connection:
+    port: /dev/ttyS104
+    baudrate: 2400
+    simulated_645:
+      '000000001004': *id002
+- id: mb645_scale_005
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-005
+  bus_address: '000000001005'
+  connection:
+    port: /dev/ttyS105
+    baudrate: 2400
+    simulated_645:
+      '000000001005': *id002
+- id: mb645_scale_006
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-006
+  bus_address: '000000001006'
+  connection:
+    port: /dev/ttyS106
+    baudrate: 2400
+    simulated_645:
+      '000000001006': *id002
+- id: mb645_scale_007
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-007
+  bus_address: '000000001007'
+  connection:
+    port: /dev/ttyS107
+    baudrate: 2400
+    simulated_645:
+      '000000001007': *id002
+- id: mb645_scale_008
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-008
+  bus_address: 000000001008
+  connection:
+    port: /dev/ttyS108
+    baudrate: 2400
+    simulated_645:
+      000000001008: *id002
+- id: mb645_scale_009
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-009
+  bus_address: 000000001009
+  connection:
+    port: /dev/ttyS109
+    baudrate: 2400
+    simulated_645:
+      000000001009: *id002
+- id: mb645_scale_010
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-010
+  bus_address: '000000001010'
+  connection:
+    port: /dev/ttyS110
+    baudrate: 2400
+    simulated_645:
+      '000000001010': *id002
+- id: mb645_scale_011
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-011
+  bus_address: '000000001011'
+  connection:
+    port: /dev/ttyS111
+    baudrate: 2400
+    simulated_645:
+      '000000001011': *id002
+- id: mb645_scale_012
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-012
+  bus_address: '000000001012'
+  connection:
+    port: /dev/ttyS112
+    baudrate: 2400
+    simulated_645:
+      '000000001012': *id002
+- id: mb645_scale_013
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-013
+  bus_address: '000000001013'
+  connection:
+    port: /dev/ttyS113
+    baudrate: 2400
+    simulated_645:
+      '000000001013': *id002
+- id: mb645_scale_014
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-014
+  bus_address: '000000001014'
+  connection:
+    port: /dev/ttyS114
+    baudrate: 2400
+    simulated_645:
+      '000000001014': *id002
+- id: mb645_scale_015
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-015
+  bus_address: '000000001015'
+  connection:
+    port: /dev/ttyS115
+    baudrate: 2400
+    simulated_645:
+      '000000001015': *id002
+- id: mb645_scale_016
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-016
+  bus_address: '000000001016'
+  connection:
+    port: /dev/ttyS116
+    baudrate: 2400
+    simulated_645:
+      '000000001016': *id002
+- id: mb645_scale_017
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-017
+  bus_address: '000000001017'
+  connection:
+    port: /dev/ttyS117
+    baudrate: 2400
+    simulated_645:
+      '000000001017': *id002
+- id: mb645_scale_018
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-018
+  bus_address: 000000001018
+  connection:
+    port: /dev/ttyS118
+    baudrate: 2400
+    simulated_645:
+      000000001018: *id002
+- id: mb645_scale_019
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-019
+  bus_address: 000000001019
+  connection:
+    port: /dev/ttyS119
+    baudrate: 2400
+    simulated_645:
+      000000001019: *id002
+- id: mb645_scale_020
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-020
+  bus_address: '000000001020'
+  connection:
+    port: /dev/ttyS120
+    baudrate: 2400
+    simulated_645:
+      '000000001020': *id002
+- id: mb645_scale_021
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-021
+  bus_address: '000000001021'
+  connection:
+    port: /dev/ttyS121
+    baudrate: 2400
+    simulated_645:
+      '000000001021': *id002
+- id: mb645_scale_022
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-022
+  bus_address: '000000001022'
+  connection:
+    port: /dev/ttyS122
+    baudrate: 2400
+    simulated_645:
+      '000000001022': *id002
+- id: mb645_scale_023
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-023
+  bus_address: '000000001023'
+  connection:
+    port: /dev/ttyS123
+    baudrate: 2400
+    simulated_645:
+      '000000001023': *id002
+- id: mb645_scale_024
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-024
+  bus_address: '000000001024'
+  connection:
+    port: /dev/ttyS124
+    baudrate: 2400
+    simulated_645:
+      '000000001024': *id002
+- id: mb645_scale_025
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-025
+  bus_address: '000000001025'
+  connection:
+    port: /dev/ttyS125
+    baudrate: 2400
+    simulated_645:
+      '000000001025': *id002
+- id: mb645_scale_026
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-026
+  bus_address: '000000001026'
+  connection:
+    port: /dev/ttyS126
+    baudrate: 2400
+    simulated_645:
+      '000000001026': *id002
+- id: mb645_scale_027
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-027
+  bus_address: '000000001027'
+  connection:
+    port: /dev/ttyS127
+    baudrate: 2400
+    simulated_645:
+      '000000001027': *id002
+- id: mb645_scale_028
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-028
+  bus_address: 000000001028
+  connection:
+    port: /dev/ttyS128
+    baudrate: 2400
+    simulated_645:
+      000000001028: *id002
+- id: mb645_scale_029
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-029
+  bus_address: 000000001029
+  connection:
+    port: /dev/ttyS129
+    baudrate: 2400
+    simulated_645:
+      000000001029: *id002
+- id: mb645_scale_030
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-030
+  bus_address: '000000001030'
+  connection:
+    port: /dev/ttyS130
+    baudrate: 2400
+    simulated_645:
+      '000000001030': *id002
+- id: mb645_scale_031
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-031
+  bus_address: '000000001031'
+  connection:
+    port: /dev/ttyS131
+    baudrate: 2400
+    simulated_645:
+      '000000001031': *id002
+- id: mb645_scale_032
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-032
+  bus_address: '000000001032'
+  connection:
+    port: /dev/ttyS132
+    baudrate: 2400
+    simulated_645:
+      '000000001032': *id002
+- id: mb645_scale_033
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-033
+  bus_address: '000000001033'
+  connection:
+    port: /dev/ttyS133
+    baudrate: 2400
+    simulated_645:
+      '000000001033': *id002
+- id: mb645_scale_034
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-034
+  bus_address: '000000001034'
+  connection:
+    port: /dev/ttyS134
+    baudrate: 2400
+    simulated_645:
+      '000000001034': *id002
+- id: mb645_scale_035
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-035
+  bus_address: '000000001035'
+  connection:
+    port: /dev/ttyS135
+    baudrate: 2400
+    simulated_645:
+      '000000001035': *id002
+- id: mb645_scale_036
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-036
+  bus_address: '000000001036'
+  connection:
+    port: /dev/ttyS136
+    baudrate: 2400
+    simulated_645:
+      '000000001036': *id002
+- id: mb645_scale_037
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-037
+  bus_address: '000000001037'
+  connection:
+    port: /dev/ttyS137
+    baudrate: 2400
+    simulated_645:
+      '000000001037': *id002
+- id: mb645_scale_038
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-038
+  bus_address: 000000001038
+  connection:
+    port: /dev/ttyS138
+    baudrate: 2400
+    simulated_645:
+      000000001038: *id002
+- id: mb645_scale_039
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-039
+  bus_address: 000000001039
+  connection:
+    port: /dev/ttyS139
+    baudrate: 2400
+    simulated_645:
+      000000001039: *id002
+- id: mb645_scale_040
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-040
+  bus_address: '000000001040'
+  connection:
+    port: /dev/ttyS140
+    baudrate: 2400
+    simulated_645:
+      '000000001040': *id002
+- id: mb645_scale_041
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-041
+  bus_address: '000000001041'
+  connection:
+    port: /dev/ttyS141
+    baudrate: 2400
+    simulated_645:
+      '000000001041': *id002
+- id: mb645_scale_042
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-042
+  bus_address: '000000001042'
+  connection:
+    port: /dev/ttyS142
+    baudrate: 2400
+    simulated_645:
+      '000000001042': *id002
+- id: mb645_scale_043
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-043
+  bus_address: '000000001043'
+  connection:
+    port: /dev/ttyS143
+    baudrate: 2400
+    simulated_645:
+      '000000001043': *id002
+- id: mb645_scale_044
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-044
+  bus_address: '000000001044'
+  connection:
+    port: /dev/ttyS144
+    baudrate: 2400
+    simulated_645:
+      '000000001044': *id002
+- id: mb645_scale_045
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-045
+  bus_address: '000000001045'
+  connection:
+    port: /dev/ttyS145
+    baudrate: 2400
+    simulated_645:
+      '000000001045': *id002
+- id: mb645_scale_046
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-046
+  bus_address: '000000001046'
+  connection:
+    port: /dev/ttyS146
+    baudrate: 2400
+    simulated_645:
+      '000000001046': *id002
+- id: mb645_scale_047
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-047
+  bus_address: '000000001047'
+  connection:
+    port: /dev/ttyS147
+    baudrate: 2400
+    simulated_645:
+      '000000001047': *id002
+- id: mb645_scale_048
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-048
+  bus_address: 000000001048
+  connection:
+    port: /dev/ttyS148
+    baudrate: 2400
+    simulated_645:
+      000000001048: *id002
+- id: mb645_scale_049
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-049
+  bus_address: 000000001049
+  connection:
+    port: /dev/ttyS149
+    baudrate: 2400
+    simulated_645:
+      000000001049: *id002
+- id: mb645_scale_050
+  model: dlt645_meter
+  access: serial
+  mode: simulator
+  name: 电表-645-规模-050
+  bus_address: '000000001050'
+  connection:
+    port: /dev/ttyS150
+    baudrate: 2400
+    simulated_645:
+      '000000001050': *id002
+- id: terminal_scale_01
+  model: dlt645_terminal
+  access: serial
+  mode: simulator
+  name: 采集终端-规模-01
+  bus_address: '000000000002'
+  connection:
+    port: /dev/ttyUSB101
+    baudrate: 2400
+    simulated_645:
+      '000000000002': &id003
+        02800085: '80510100'
+      '000000002001': *id002
+      '000000002002': *id002
+      '000000002003': *id002
+      '000000002004': *id002
+      '000000002005': *id002
+      '000000002006': *id002
+      '000000002007': *id002
+      000000002008: *id002
+      000000002009: *id002
+      '000000002010': *id002
+      '000000002011': *id002
+      '000000002012': *id002
+      '000000002013': *id002
+      '000000002014': *id002
+      '000000002015': *id002
+      '000000002016': *id002
+      '000000002017': *id002
+      000000002018: *id002
+      000000002019: *id002
+      '000000002020': *id002
+- id: terminal_scale_01_meter_01
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002001'
+  name: 电表-645-terminal_scale_01-01
+- id: terminal_scale_01_meter_02
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002002'
+  name: 电表-645-terminal_scale_01-02
+- id: terminal_scale_01_meter_03
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002003'
+  name: 电表-645-terminal_scale_01-03
+- id: terminal_scale_01_meter_04
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002004'
+  name: 电表-645-terminal_scale_01-04
+- id: terminal_scale_01_meter_05
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002005'
+  name: 电表-645-terminal_scale_01-05
+- id: terminal_scale_01_meter_06
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002006'
+  name: 电表-645-terminal_scale_01-06
+- id: terminal_scale_01_meter_07
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002007'
+  name: 电表-645-terminal_scale_01-07
+- id: terminal_scale_01_meter_08
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: 000000002008
+  name: 电表-645-terminal_scale_01-08
+- id: terminal_scale_01_meter_09
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: 000000002009
+  name: 电表-645-terminal_scale_01-09
+- id: terminal_scale_01_meter_10
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002010'
+  name: 电表-645-terminal_scale_01-10
+- id: terminal_scale_01_meter_11
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002011'
+  name: 电表-645-terminal_scale_01-11
+- id: terminal_scale_01_meter_12
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002012'
+  name: 电表-645-terminal_scale_01-12
+- id: terminal_scale_01_meter_13
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002013'
+  name: 电表-645-terminal_scale_01-13
+- id: terminal_scale_01_meter_14
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002014'
+  name: 电表-645-terminal_scale_01-14
+- id: terminal_scale_01_meter_15
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002015'
+  name: 电表-645-terminal_scale_01-15
+- id: terminal_scale_01_meter_16
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002016'
+  name: 电表-645-terminal_scale_01-16
+- id: terminal_scale_01_meter_17
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002017'
+  name: 电表-645-terminal_scale_01-17
+- id: terminal_scale_01_meter_18
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: 000000002018
+  name: 电表-645-terminal_scale_01-18
+- id: terminal_scale_01_meter_19
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: 000000002019
+  name: 电表-645-terminal_scale_01-19
+- id: terminal_scale_01_meter_20
+  model: dlt645_meter
+  via: terminal_scale_01
+  access: serial
+  bus_address: '000000002020'
+  name: 电表-645-terminal_scale_01-20
+- id: terminal_scale_02
+  model: dlt645_terminal
+  access: serial
+  mode: simulator
+  name: 采集终端-规模-02
+  bus_address: '000000000003'
+  connection:
+    port: /dev/ttyUSB102
+    baudrate: 2400
+    simulated_645:
+      '000000000003': *id003
+      '000000002101': *id002
+      '000000002102': *id002
+      '000000002103': *id002
+      '000000002104': *id002
+      '000000002105': *id002
+      '000000002106': *id002
+      '000000002107': *id002
+      000000002108: *id002
+      000000002109: *id002
+      '000000002110': *id002
+      '000000002111': *id002
+      '000000002112': *id002
+      '000000002113': *id002
+      '000000002114': *id002
+      '000000002115': *id002
+      '000000002116': *id002
+      '000000002117': *id002
+      000000002118: *id002
+      000000002119: *id002
+      '000000002120': *id002
+- id: terminal_scale_02_meter_01
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002101'
+  name: 电表-645-terminal_scale_02-01
+- id: terminal_scale_02_meter_02
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002102'
+  name: 电表-645-terminal_scale_02-02
+- id: terminal_scale_02_meter_03
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002103'
+  name: 电表-645-terminal_scale_02-03
+- id: terminal_scale_02_meter_04
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002104'
+  name: 电表-645-terminal_scale_02-04
+- id: terminal_scale_02_meter_05
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002105'
+  name: 电表-645-terminal_scale_02-05
+- id: terminal_scale_02_meter_06
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002106'
+  name: 电表-645-terminal_scale_02-06
+- id: terminal_scale_02_meter_07
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002107'
+  name: 电表-645-terminal_scale_02-07
+- id: terminal_scale_02_meter_08
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: 000000002108
+  name: 电表-645-terminal_scale_02-08
+- id: terminal_scale_02_meter_09
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: 000000002109
+  name: 电表-645-terminal_scale_02-09
+- id: terminal_scale_02_meter_10
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002110'
+  name: 电表-645-terminal_scale_02-10
+- id: terminal_scale_02_meter_11
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002111'
+  name: 电表-645-terminal_scale_02-11
+- id: terminal_scale_02_meter_12
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002112'
+  name: 电表-645-terminal_scale_02-12
+- id: terminal_scale_02_meter_13
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002113'
+  name: 电表-645-terminal_scale_02-13
+- id: terminal_scale_02_meter_14
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002114'
+  name: 电表-645-terminal_scale_02-14
+- id: terminal_scale_02_meter_15
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002115'
+  name: 电表-645-terminal_scale_02-15
+- id: terminal_scale_02_meter_16
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002116'
+  name: 电表-645-terminal_scale_02-16
+- id: terminal_scale_02_meter_17
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002117'
+  name: 电表-645-terminal_scale_02-17
+- id: terminal_scale_02_meter_18
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: 000000002118
+  name: 电表-645-terminal_scale_02-18
+- id: terminal_scale_02_meter_19
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: 000000002119
+  name: 电表-645-terminal_scale_02-19
+- id: terminal_scale_02_meter_20
+  model: dlt645_meter
+  via: terminal_scale_02
+  access: serial
+  bus_address: '000000002120'
+  name: 电表-645-terminal_scale_02-20
+- id: terminal_scale_03
+  model: dlt645_terminal
+  access: serial
+  mode: simulator
+  name: 采集终端-规模-03
+  bus_address: '000000000004'
+  connection:
+    port: /dev/ttyUSB103
+    baudrate: 2400
+    simulated_645:
+      '000000000004': *id003
+      '000000002201': *id002
+      '000000002202': *id002
+      '000000002203': *id002
+      '000000002204': *id002
+      '000000002205': *id002
+      '000000002206': *id002
+      '000000002207': *id002
+      000000002208: *id002
+      000000002209: *id002
+      '000000002210': *id002
+      '000000002211': *id002
+      '000000002212': *id002
+      '000000002213': *id002
+      '000000002214': *id002
+      '000000002215': *id002
+      '000000002216': *id002
+      '000000002217': *id002
+      000000002218: *id002
+      000000002219: *id002
+      '000000002220': *id002
+- id: terminal_scale_03_meter_01
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002201'
+  name: 电表-645-terminal_scale_03-01
+- id: terminal_scale_03_meter_02
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002202'
+  name: 电表-645-terminal_scale_03-02
+- id: terminal_scale_03_meter_03
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002203'
+  name: 电表-645-terminal_scale_03-03
+- id: terminal_scale_03_meter_04
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002204'
+  name: 电表-645-terminal_scale_03-04
+- id: terminal_scale_03_meter_05
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002205'
+  name: 电表-645-terminal_scale_03-05
+- id: terminal_scale_03_meter_06
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002206'
+  name: 电表-645-terminal_scale_03-06
+- id: terminal_scale_03_meter_07
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002207'
+  name: 电表-645-terminal_scale_03-07
+- id: terminal_scale_03_meter_08
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: 000000002208
+  name: 电表-645-terminal_scale_03-08
+- id: terminal_scale_03_meter_09
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: 000000002209
+  name: 电表-645-terminal_scale_03-09
+- id: terminal_scale_03_meter_10
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002210'
+  name: 电表-645-terminal_scale_03-10
+- id: terminal_scale_03_meter_11
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002211'
+  name: 电表-645-terminal_scale_03-11
+- id: terminal_scale_03_meter_12
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002212'
+  name: 电表-645-terminal_scale_03-12
+- id: terminal_scale_03_meter_13
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002213'
+  name: 电表-645-terminal_scale_03-13
+- id: terminal_scale_03_meter_14
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002214'
+  name: 电表-645-terminal_scale_03-14
+- id: terminal_scale_03_meter_15
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002215'
+  name: 电表-645-terminal_scale_03-15
+- id: terminal_scale_03_meter_16
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002216'
+  name: 电表-645-terminal_scale_03-16
+- id: terminal_scale_03_meter_17
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002217'
+  name: 电表-645-terminal_scale_03-17
+- id: terminal_scale_03_meter_18
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: 000000002218
+  name: 电表-645-terminal_scale_03-18
+- id: terminal_scale_03_meter_19
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: 000000002219
+  name: 电表-645-terminal_scale_03-19
+- id: terminal_scale_03_meter_20
+  model: dlt645_meter
+  via: terminal_scale_03
+  access: serial
+  bus_address: '000000002220'
+  name: 电表-645-terminal_scale_03-20
+- id: grid_sim_scale_01
+  model: grid_simulator_3ph
+  role: support
+  access: tcp
+  mode: simulator
+  name: 电网模拟器-规模-01
+  connection:
+    host: 192.168.10.1
+    port: 502
+    simulated_response: 230.0 50.0
+- id: grid_sim_scale_02
+  model: grid_simulator_3ph
+  role: support
+  access: tcp
+  mode: simulator
+  name: 电网模拟器-规模-02
+  connection:
+    host: 192.168.10.2
+    port: 502
+    simulated_response: 230.0 50.0

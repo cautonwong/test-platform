@@ -1,0 +1,10 @@
+# 试点清单:由 tools/import_cases.py 从上游 xlsx 生成,不要手改。
+# 命令: python tools/import_cases.py --sheet 13通信 --model dtsd1352_modbus --pilot-limit 10
+# 跑法: python -m pytest tests/test_setting_cases.py --device-config build/pilot_devices.yaml
+# 只收**完整**条款:每个步骤都是写、参数名与取值都在 params.yaml 里、预期结果是等值。
+# 条款开头那段重复的台架设定落成 bench:(ADR 0006):它不进 steps,也不参与判定。
+# 含读 / 延时 / 人工步骤的条款是子集,不进试点(少一半步骤也绿,分不出验了半个还是全个)。
+# 参数名 → 点表键的映射见 configs/import/params.yaml(不同名必须显式写 synonyms,否则导入报错)。
+# 本次 0 条: 13通信 完整 0 / 归场景层 88 / 部分 0 / 不可生成 17 —— 先补点表与 params.yaml,缺口见 build/coverage.md。
+setting_cases:
+  dtsd1352_modbus: {}

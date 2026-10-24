@@ -1,0 +1,88 @@
+# 对象参数名 → 台架量(bench)/ 读数键(dut)。
+#
+# 上游的 `对象参数` 是 `键=值`。这张表回答两件事:这个名字落到哪个量、源文件写的值
+# 对应点表里的什么数(源文件写 "300bps",寄存器要的是 300)。
+# 表是**人工维护、进版本库**的:猜错一个量名就是静默假读数,所以这里不写通配、不做推断 ——
+# 名字不在表里就进覆盖率报表的"映射缺口",等人补。
+#
+# 校验(tools/import_cases.py::_validate_params):
+#   - device 只能是 dut / bench;dut 必须有 key 与 values,bench 必须有 quantity
+#   - 拼错键(keys / value / quantitys)直接报错,不静默取缺省
+#   - dut 的 key 必须是被选型号点表里 `writable: true` 的点(与装配期同一条规则)
+#   - dut 的参数名与 key 不同名时,必须在条目里写 synonyms: [这个名字] 显式声明同义,
+#     否则导入直接报错。名字不同就是另一个量:硬指到一个不相干的键上,写进去再读回来
+#     当然一致 —— 那是与被测条款无关的假绿。
+#
+# 同义声明长这样(两个名字确实指同一个量时才写,并在旁边写一句依据):
+#   有功电能:
+#     device: dut
+#     key: 有功总电量      # 点表里这个量的读数键
+#     synonyms: [有功电能]  # 上游表单里的写法
+#     values: {...}
+#
+# 眼下只有 13通信 用得上的台架量。型号差异只在点表与这张表里,不在代码里。
+#
+# 台架量的 quantity 就是台架型号点表里的读数键,和源文件里的写法逐字相同 ——
+# Ua 与 Ub 是两个量,不合成一个「电压」;写别名就等于把条款里的两件事压成一件。
+
+# 台架量:落到周边设备(电网模拟器)的能力上,不判被测设备。
+Ua: {device: bench, quantity: Ua, unit: V}
+Ub: {device: bench, quantity: Ub, unit: V}
+Uc: {device: bench, quantity: Uc, unit: V}
+Ia: {device: bench, quantity: Ia, unit: A}
+Ib: {device: bench, quantity: Ib, unit: A}
+Ic: {device: bench, quantity: Ic, unit: A}
+θa: {device: bench, quantity: θa, unit: °}
+θb: {device: bench, quantity: θb, unit: °}
+θc: {device: bench, quantity: θc, unit: °}
+QUaUb: {device: bench, quantity: QUaUb, unit: °}
+QUaUc: {device: bench, quantity: QUaUc, unit: °}
+Fre: {device: bench, quantity: Fre, unit: Hz}
+MeterConst: {device: bench, quantity: MeterConst}
+
+# 接线方式是枚举,不是模拟量:源文件里写的是中文名字,台架要的是整数。
+# 名字 → 整数这一列要等真实台架手册 / 实测(与本票的寄存器地址同一类外部输入),
+# 现在全部是 null —— 编一个整数和编一个寄存器地址是同一种假绿。
+# 名字先列全:导入时报“未知取值”能直接给出上面这份可用值列表;null 的取值进覆盖率
+# 报表的“映射缺口”,等人把整数补上而不是默认成 0。
+#
+# 上游反查的结果(票 43)在 configs/import/wiring_modes.yaml:Ctype 整数与元件数有出处,
+# 中文名没有(上游全仓 0 命中),所以那半边是**本仓定义**。整数仍然不填这里:
+# 填了就等于让 mode: real 的地址守卫放行一个没实测过的写值,而这种错在这里看不出来。
+接线方式:
+  device: bench
+  quantity: 接线方式
+  values:
+    3P4W: null
+    3P3W: null
+    3P3W2I: null
+    3P4W2I: null
+    单相: null
+    # 13通信 里唯一实际出现的取值(138 次):台架接线跟随被测型号,不是常数。
+    # 要落成整数,得先有“型号 → 接线方式”这张表(或读表自己那份,见 wiring_modes.yaml::meter_side)。
+    与表型一致: null
+
+# 通信模式 / 红外通信波特率 / RS485通信波特率 / RS232通信波特率 曾经在这里被指到
+# `有功计量模式`(dtsd1352_modbus 唯一的可写点)上,为了让试点凑够 10 条。那 10 条会绿,
+# 但验的不是通信:把波特率 300 写进"有功计量模式",回读当然一致。已删除。
+# 要收回来,先给点表补通信模式 / 波特率寄存器,再在这里写同名条目。
+#
+# 票 43 把这 5 个可写参数(通信模式 / 红外通信波特率 / RS485通信波特率 / 时钟 / 表地址)
+# 逐个查到了什么、还缺什么,记在 configs/import/writable_params.yaml(带行号出处,
+# 由 tools/check_import_sources.py 全量校验)。这里留不下它们,原因有两条:
+#   1. dut 条目的 key 必须是所选型号点表里 writable: true 的点,而 dtsd1352_modbus 只有
+#      `有功计量模式` 一个;给不存在的点写条目,装配前就报错(这是有意的)。
+#   2. 即便点表补上,地址也必须来自厂家寄存器表 —— 上游那是 DL/T645 DI / DLMS 逻辑名,
+#      不是 Modbus 寄存器地址。三套编号体系,不能互相顶。
+# 所以这 5 项的台账在 writable_params.yaml,不在本文件。
+#
+# 票 57 补了 `dlt645_meter` 的两个可写点(`时钟日期` 04000101 / `时钟时间` 04000102,
+# 出处见 configs/import/writes.yaml),但**时钟仍然不写在这里**,理由不是地址,是表达力:
+#   1. 条款里 `时钟=2024-01-01 15:55:00` 是一个名字,点表里是两个 DI(日期 + 时间);
+#      一个 dut 条目只能指一个 key,拆成一步写两次也不在 setting_cases 的表达能力里。
+#   2. 就算挤成一个点,"写进去 → 读回判相等"对时钟不成立:写和读之间表自己走了几秒。
+#      上游那句话是「读写一致为合格,误差±5s」—— 区间判据,不是等值。塞进 equals 就是
+#      一条永远绿不了(真表)或者永远假绿(模拟器)的条款。
+# 表地址 / 红外与通信口速率的可写点也还没补:上游图例对 `String` 没给字节布局,
+# 写路径也没有文本编码(见 src/testplatform/protocol/values.py 的 ENCODERS)。
+# 所以这些名字仍留在覆盖率报表的「写入参数没落处」里,不是忘了。

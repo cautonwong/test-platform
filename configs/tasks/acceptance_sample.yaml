@@ -1,0 +1,28 @@
+# 任务文件:第一条 **acceptance**(验收设备)任务 —— 票 15。
+#
+#   python tools/run_task.py configs/tasks/acceptance_sample.yaml --root . --evidence-dir reports/acceptance_sample
+#
+# 它是"一条能跑的验收任务"的骨架,不是 EdgeC 产品的验收:
+#   * product 是 `tests_support/fake_product.py`(示例产品),**不是 EdgeC 的 cmd/* 产品**
+#   * 设备是清单里的模拟设备(模拟从站),不带真硬件
+# 接真产品的任务要有 monorepo 路径与构建步骤,那是下一票;在那之前,这份任务的存在意义是
+# "证明验收这条链路是通的",并且让 CI 的门禁有一条**真的验收**可判(否则第 6 档一直红)。
+#
+# 选谁:`tag:验收` —— 一条按设备参数化的契约用例(设备级 1/1)+ 一条场景用例(真设定 → 真读数)。
+# `--select` 的条件之间是"且",所以两条用例靠这个共用标签被同一条任务选中,
+# 不靠编号前缀拼两条(那样会选不中)。
+#
+# 证据里能看出"这次真验了":每设备 JSONL 的读数、task.json 的实际命令行与端口、
+# env.commit、以及被执行的用例编号。
+id: acceptance_sample
+kind: acceptance
+product: fake-edgec
+launch:
+  - ${PYTHON}
+  - tests_support/fake_product.py
+  - --port
+  - ${PORT}
+  - --slave-port
+  - meter_01:${SLAVE_PORT:meter_01}
+devices: configs/devices.yaml
+select: tag:验收

@@ -1,0 +1,216 @@
+# 台架 14 个量:单位 / 倍率 / 量程 / 整数性 / 出处。
+#
+# 这 14 个量就是 configs/devices.yaml 里 grid_simulator_3ph 点表的读数键,一个不多一个不少。
+# 本文件只回答"这个量的物理含义与上游怎么表达它",**不给地址**:台架寄存器地址仍然是
+# 点表里的 TODO,缺了它 mode: real 在装配期报错(见 config/manifest.py::_validate_real_mode_addresses)。
+#
+# 上游把同一件事拆成两层写:
+#   tests/param.py 的全局量(Un / In / Hz / C)—— 条款里的额定值记号
+#   oper_object/runtime.py 的 runWord(...) 参数 —— 真正下发给台架的数
+# 所以"单位"不能只看一层:条款里写 `Ua=Un`,台架收到的是 fUe=230 与 fRangeUa=100 两个数
+# (额定电压 + 额定电压的百分比)。scale 一栏写的就是这一步换算,漏掉它就会把 100 当成 100V。
+#
+# 每条都带 source: "<上游相对路径>:<行号>"。校验:
+#   python tools/check_import_sources.py --upstream E:/workspace/cmake/power/autotest-10544
+# 它会打开那一行,断言 expect 字符串真的出现在**那一行**上。行号错一位就红 —— 这是本文件
+# 存在的全部理由:抄错一位在这里看不出来,但会让 42 的守卫从"挡着"变成"放行一个错值"。
+
+# 条款里的额定值记号 → 数值。13通信 里 `Ua=Un` / `Fre=Hz` 出现 120/138 次,全是这五个全局量。
+#
+# 这里记的是**上游写了什么数**,供人对照;导入时真正用的是 configs/import/symbols.yaml:
+# 它把符号指到型号参数名,值由型号声明 + 设备实例上的额定值给 —— 上面这几个数不是默认值,
+# 不会在不声明的型号上兜底。
+symbolic_values:
+  Un:
+    value: 230
+    unit: V
+    source: "tests/param.py:13"
+    expect: "Un = 230"
+    note: 上游这套用例把额定电压写成 230V;本仓 configs/devices.yaml 的台架前置写的是 220。两个数都对(不同被试品),台架手册到位时按型号给,不要取其中一个当默认。
+  In:
+    value: 5
+    unit: A
+    source: "tests/param.py:15"
+    expect: "In = 5"
+  Imax:
+    value: 70
+    unit: A
+    source: "tests/param.py:17"
+    expect: "Imax = 70"
+  Hz:
+    value: 50
+    unit: Hz
+    source: "tests/param.py:19"
+    expect: "Hz = 50"
+  C:
+    value: 1000
+    unit: null
+    source: "tests/param.py:21"
+    expect: "C = 1000"
+    note: 脉冲常数。上游另有 E_unit = "Wh"(tests/param.py:72)决定电量单位;脉冲常数的单位本文件给不出,见 MeterConst。
+
+quantities:
+  Ua:
+    upstream: [fUe, fRangeUa]
+    unit: V
+    scale: fUe × fRangeUa / 100(A 相电压 = 额定电压 × A 相电压百分比)
+    integer: false
+    range: {min: 0, max: null}
+    range_note: 百分比没有给出上限;上游默认 fRangeUa=100(即 Un),setBottomEnergy 里 fRangeIa 默认 200,说明超过 100% 是正常的。
+    evidence:
+      - {source: "common/oper_object/runtime.py:87", expect: "fUe=额定电压V"}
+      - {source: "common/oper_object/runtime.py:88", expect: "fRangeUa：A相电压百分比"}
+      - {source: "common/pypack/bench/parameter.py:14", expect: "Ua: float"}
+
+  Ub:
+    upstream: [fUe, fRangeUb]
+    unit: V
+    scale: fUe × fRangeUb / 100
+    integer: false
+    range: {min: 0, max: null}
+    range_note: 同 Ua。
+    evidence:
+      - {source: "common/oper_object/runtime.py:87", expect: "fUe=额定电压V"}
+      - {source: "common/oper_object/runtime.py:88", expect: "fRangeUb: B相电压百分比"}
+      - {source: "common/pypack/bench/parameter.py:15", expect: "Ub: float"}
+
+  Uc:
+    upstream: [fUe, fRangeUc]
+    unit: V
+    scale: fUe × fRangeUc / 100
+    integer: false
+    range: {min: 0, max: null}
+    range_note: 同 Ua。
+    evidence:
+      - {source: "common/oper_object/runtime.py:87", expect: "fUe=额定电压V"}
+      - {source: "common/oper_object/runtime.py:88", expect: "fRangeUc:C相电压百分比"}
+      - {source: "common/pypack/bench/parameter.py:16", expect: "Uc: float"}
+
+  Ia:
+    upstream: [fIe, fRangeIa]
+    unit: A
+    scale: fIe × fRangeIa / 100(A 相电流 = 额定电流 × A 相电流百分比)
+    integer: false
+    range: {min: 0, max: null}
+    range_note: 同 Ua;上游默认 fRangeIa=100,setBottomEnergy 里默认 200。
+    evidence:
+      - {source: "common/oper_object/runtime.py:87", expect: "fIe:额定电流"}
+      - {source: "common/oper_object/runtime.py:89", expect: "fRangeIa:A相电流百分比"}
+      - {source: "common/pypack/bench/parameter.py:18", expect: "Ia: float"}
+
+  Ib:
+    upstream: [fIe, fRangeIb]
+    unit: A
+    scale: fIe × fRangeIb / 100
+    integer: false
+    range: {min: 0, max: null}
+    range_note: 同 Ia。
+    evidence:
+      - {source: "common/oper_object/runtime.py:87", expect: "fIe:额定电流"}
+      - {source: "common/oper_object/runtime.py:89", expect: "fRangeIb:B相电流百分比"}
+      - {source: "common/pypack/bench/parameter.py:19", expect: "Ib: float"}
+
+  Ic:
+    upstream: [fIe, fRangeIc]
+    unit: A
+    scale: fIe × fRangeIc / 100
+    integer: false
+    range: {min: 0, max: null}
+    range_note: 同 Ia。
+    evidence:
+      - {source: "common/oper_object/runtime.py:87", expect: "fIe:额定电流"}
+      - {source: "common/oper_object/runtime.py:89", expect: "fRangeIc:C相电流百分比"}
+      - {source: "common/pypack/bench/parameter.py:20", expect: "Ic: float"}
+
+  θa:
+    upstream: [fAngleUaIa]
+    unit: °
+    scale: 直给(A 相电压与 A 相电流的夹角)
+    integer: true
+    range: {min: 0, max: 360}
+    range_note: 角度本身的范围;上游只给了默认 0,没有给上下限。
+    evidence:
+      - {source: "common/oper_object/runtime.py:68", expect: "fAngleUaIa:A相压流角"}
+      - {source: "common/pypack/bench/parameter.py:22", expect: "UaIa: int"}
+
+  θb:
+    upstream: [fAngleUbIb]
+    unit: °
+    scale: 直给
+    integer: true
+    range: {min: 0, max: 360}
+    range_note: 同 θa。
+    evidence:
+      - {source: "common/oper_object/runtime.py:68", expect: "fAngleUbIb:B相压流角"}
+      - {source: "common/pypack/bench/parameter.py:23", expect: "UbIb: int"}
+
+  θc:
+    upstream: [fAngleUcIc]
+    unit: °
+    scale: 直给
+    integer: true
+    range: {min: 0, max: 360}
+    range_note: 同 θa。
+    evidence:
+      - {source: "common/oper_object/runtime.py:68", expect: "fAngleUcIc:C相压流角"}
+      - {source: "common/pypack/bench/parameter.py:24", expect: "UcIc: int"}
+
+  QUaUb:
+    upstream: [fAngleUaUb]
+    unit: °
+    scale: 直给(Ua 与 Ub 的夹角)
+    integer: true
+    range: {min: 0, max: 360}
+    range_note: 同 θa;上游两处默认值不一致(desk 字典 0,台架字典 120)—— 取值以台架为准,默认值不当事。
+    evidence:
+      - {source: "common/deskParam.py:10", expect: "'fAngleUaUb':0"}
+      - {source: "common/globalvar.py:12", expect: '"fAngleUaUb":120'}
+      - {source: "common/pypack/bench/parameter.py:25", expect: "UaUb: int"}
+
+  QUaUc:
+    upstream: [fAngleUaUc]
+    unit: °
+    scale: 直给(Ua 与 Uc 的夹角)
+    integer: true
+    range: {min: 0, max: 360}
+    range_note: 同 QUaUb。
+    evidence:
+      - {source: "common/deskParam.py:10", expect: "'fAngleUaUc':0"}
+      - {source: "common/globalvar.py:12", expect: '"fAngleUaUc":240'}
+      - {source: "common/pypack/bench/parameter.py:26", expect: "UaUc: int"}
+
+  Fre:
+    upstream: [fHz]
+    unit: Hz
+    scale: 直给
+    integer: null
+    range: {min: null, max: null}
+    range_note: 上游两处声明互相矛盾(读侧是 int,写侧是 float),所以整数性这里不落值;量程也没有给。
+    evidence:
+      - {source: "common/oper_object/runtime.py:60", expect: "fHz = 50"}
+      - {source: "common/pypack/bench/parameter.py:28", expect: "Frequency: int"}
+      - {source: "common/pypack/bench/parameter_tx.py:16", expect: "Frequency: float = 60"}
+
+  接线方式:
+    upstream: [bConectionType]
+    unit: null
+    scale: 枚举整数,不是模拟量;整数编码与相数的对照见 configs/import/wiring_modes.yaml
+    integer: true
+    range: null
+    range_note: 枚举的取值集合见 wiring_modes.yaml;上游有两套整数编码(Ctype / MeterTypes),别混。
+    evidence:
+      - {source: "common/oper_object/runtime.py:59", expect: "bConectionType =9"}
+      - {source: "tests/param.py:27", expect: "Ctype = 9"}
+      - {source: "tests/param.py:69", expect: "CalPhaseNum = (Ctype==5)*3"}
+
+  MeterConst:
+    upstream: [fMeterConst]
+    unit: null
+    scale: 直给(表常数 / 脉冲常数,每个 kWh 或 kvarh 的脉冲数)
+    integer: null
+    range: {min: null, max: null}
+    range_note: 单位没写明,整数性两处声明不一致(globalvar 给整数 1000,parameter_tx 声明 float),所以两个都留空。
+    evidence:
+      - {source: "common/globalvar.py:13", expect: '"fMeterConst" :1000'}
+      - {source: "common/pypack/bench/parameter_tx.py:23", expect: "EnergyConst: float = 1000"}
+      - {source: "tests/param.py:21", expect: "C = 1000"}

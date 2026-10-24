@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+evidence/
+.coverage
+
+# 导入器的产物(xlsx 解析结果 / 覆盖率报表 / 试点合并清单)
+build/
+
+# npm 壳打出来的 wheel(prepack 产物)
+npm/dist/
+
+# clawpatch 的本地状态(审查 findings / runs)
+.clawpatch/
+
+# 打包产物(git archive 生成的 zip)
+dist/

@@ -1,0 +1,68 @@
+# 接线方式:整数编码 ↔ 相数(元件数)↔ 中文名。
+#
+# 上游有**两套**互不相同的整数编码,混用就会把表接成另一种接线:
+#   Ctype      —— 用例层的接线方式(tests/param.py),取值 0/5/9/10/51/52/53/54/91;
+#                 相数由 tests/param.py:69 的 CalPhaseNum 从它算出来
+#   MeterTypes —— 台架协议层的电表类型(common/pypack/pyproto/hxp3001c/typedef/metertypes.py),
+#                 取值 0x30–0x39,编码里本身就带 3p3w / 3p4w / 1p2w 与计量方式(watt / var)
+# 两套之间上游没有对照表:没有一处把 Ctype=5 映射成 MeterTypes.M_3p4w_watt。别自己接。
+#
+# **中文名是本仓定义。** 上游全仓 `3P4W` / `三相四线` / `三相三线` 0 命中 —— 只有整数与英文
+# 枚举名。所以中文名 ↔ 整数的对照,除 MeterTypes 那半张表(英文名自带 3p3w/3p4w/1p2w)之外,
+# 都是我们自己的口径,source 写 `本仓定义(上游无中文名)`。
+#
+# 校验:python tools/check_import_sources.py --upstream <上游目录>
+#   ctypes 每行按 `(Ctype==<取值>)*<元件数>` 去 tests/param.py:69 那一行比对 —— 元件数抄错就红;
+#   meter_types 每行按 `<英文名> = <整数>` 去 metertypes.py 那一行比对;
+#   names_zh 每行的 source 必须**逐字**是 `本仓定义(上游无中文名)`,防止有人给它编一个上游出处。
+
+# 13通信 的「调整台体」块里,接线方式只有一个取值,而且是符号值不是整数。
+# 台账必须覆盖它,否则导入器只会报"未知取值"而说不出为什么落不下去。
+seen_in_13通信:
+  - raw: 与表型一致
+    ctype: null
+    meter_type: null
+    note: 台架接线跟随被测型号,不是常数。落成整数要么按型号查表,要么读表自身的接线方式(OBIS 0-0:96.2.241.255,见下),两条都还没定 —— 留 null,不拿 0 顶(0 是一个真取值)。
+
+# 我们点表 / params.yaml 里用的名字。整数编码**没填**:填了就等于让 42 的守卫放行一个
+# 没实测过的写值。要填先拿台架手册或实测(见 docs/upstreams.md 的取材记录)。
+names_zh:
+  3P4W: {ctype: null, meter_type: null, phases: 3, source: 本仓定义(上游无中文名)}
+  3P3W: {ctype: null, meter_type: null, phases: 3, source: 本仓定义(上游无中文名)}
+  3P3W2I: {ctype: null, meter_type: null, phases: 3, source: 本仓定义(上游无中文名)}
+  3P4W2I: {ctype: null, meter_type: null, phases: 3, source: 本仓定义(上游无中文名)}
+  单相: {ctype: null, meter_type: null, phases: 1, source: 本仓定义(上游无中文名)}
+
+# 用例层编码。elements = tests/param.py:69 的 CalPhaseNum(计量元件数,不是相数):
+# 3 元件 = 三相逐元件计量,2 元件 = 三相两元件,1 元件 = 单相。哪种接线方式对应哪个整数,
+# 上游一个字都没写,所以这里只给可复核的元件数,不给接线方式名字。
+ctypes:
+  - {ctype: 5, elements: 3, source: "tests/param.py:69"}
+  - {ctype: 9, elements: 1, source: "tests/param.py:69"}
+  - {ctype: 0, elements: 2, source: "tests/param.py:69"}
+  - {ctype: 10, elements: 2, source: "tests/param.py:69"}
+  - {ctype: 51, elements: 2, source: "tests/param.py:69"}
+  - {ctype: 91, elements: 1, source: "tests/param.py:69"}
+  - {ctype: 52, elements: 1, source: "tests/param.py:69"}
+  - {ctype: 53, elements: 2, source: "tests/param.py:69"}
+  - {ctype: 54, elements: 2, source: "tests/param.py:69"}
+# 上游默认 Ctype = 9(tests/param.py:27),即单相单表;用例里 fUe=220/230 与 In=5 也是单相口径。
+
+# 台架协议层编码(MeterTypes)。英文枚举名自带接线方式,中文名是我们的翻译。
+meter_types:
+  - {code: "0x30", upstream_name: M_3p3w_watt, wiring: 3p3w, metering: watt, phases: 3, name_zh: 三相三线, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:17"}
+  - {code: "0x31", upstream_name: M_3p3w_60_var, wiring: 3p3w, metering: var_60deg, phases: 3, name_zh: 三相三线60度无功, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:18"}
+  - {code: "0x33", upstream_name: M_3p3w_90_Mov_var, wiring: 3p3w, metering: var_90deg_moving, phases: 3, name_zh: 三相三线90度移相无功, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:19"}
+  - {code: "0x34", upstream_name: M_3p3w_Natural_var, wiring: 3p3w, metering: var_natural, phases: 3, name_zh: 三相三线自然无功, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:20"}
+  - {code: "0x35", upstream_name: M_3p4w_watt, wiring: 3p4w, metering: watt, phases: 3, name_zh: 三相四线, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:21"}
+  - {code: "0x36", upstream_name: M_3p4w_90_Cross_var, wiring: 3p4w, metering: var_90deg_cross, phases: 3, name_zh: 三相四线90度跨相无功, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:22"}
+  - {code: "0x37", upstream_name: M_3p4w_90_Mov_var, wiring: 3p4w, metering: var_90deg_moving, phases: 3, name_zh: 三相四线90度移相无功, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:23"}
+  - {code: "0x38", upstream_name: M_3p4w_Natural_var, wiring: 3p4w, metering: var_natural, phases: 3, name_zh: 三相四线自然无功, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:24"}
+  - {code: "0x39", upstream_name: M_1p2w_watt, wiring: 1p2w, metering: watt, phases: 1, name_zh: 单相两线, source: "common/pypack/pyproto/hxp3001c/typedef/metertypes.py:25"}
+
+# 表自己的接线方式(不是台架的):DLMS 逻辑名,读回用;写不写得上、写成什么编码,手册没到之前不碰。
+meter_side:
+  obis: "0-0:96.2.241.255"
+  source: "common/obisDict.py:9766"
+  expect: "'接线方式:value':('1', '0-0:96.2.241.255', '2', 'unsigned')"
+  note: 这是表的 DLMS 点(类 1,长度 2,unsigned),不是 Modbus 寄存器地址,也不是台架的 Ctype。三者不是一回事。

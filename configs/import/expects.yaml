@@ -1,0 +1,25 @@
+# 预期结果短语 → 判据类型。
+#
+# 上游的 `预期结果` 是中文短语("读写一致为合格")。这张表决定它能不能机读:
+#   equals + compare: written_value  写下去的值读回来必须相等 → 能生成 setting_cases 的 expect
+#   exists                           读到了就算过(不断言数值)→ 读数类,不进 setting_cases
+# 短语不在表里 → 覆盖率报表的"映射缺口"。别为了凑数把一个"表计拒绝为合格"写成 exists:
+# 那是反向断言,写进去就是假通过。
+#
+# 校验(tools/import_cases.py::_validate_expects):kind 只有这两个;compare 只有 equals 有,
+# 且只能取 written_value;未知键直接报错。
+
+# 写参数回读:期望值就是写下去的那个值。
+读写一致为合格: {kind: equals, compare: written_value}
+读写一致: {kind: equals, compare: written_value}
+设置成功为合格: {kind: equals, compare: written_value}
+设置成功，读写一致为合格: {kind: equals, compare: written_value}
+合格：设置成功: {kind: equals, compare: written_value}
+合格：读写一致: {kind: equals, compare: written_value}
+合格：读写一致为合格: {kind: equals, compare: written_value}
+设置成功,读写一致: {kind: equals, compare: written_value}
+
+# 读数:读到了就算过,读到的值对不对由判据集判。
+读取成功为合格: {kind: exists}
+读取成功: {kind: exists}
+合格：读取成功: {kind: exists}

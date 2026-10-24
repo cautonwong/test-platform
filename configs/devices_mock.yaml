@@ -1,0 +1,180 @@
+# 这份清单是 configs/devices.yaml 的副本,只把 meter_01 换成了真实链路:
+# mode: real + access: tcp,连 tools/mock_modbus_meter.py 那个独立从站进程。
+# 平台侧走 real_transports.RealTcpTransport,与接真表的区别只剩"表是 mock 的"。
+# 跑法:
+#   python tools/mock_modbus_meter.py --port 15020 --slave 1 --registers configs/mock_registers.yaml
+#   python -m pytest -q --device-config configs/devices_mock.yaml
+# 没有 mock 在跑时,端到端用例 tests_platform/test_mock_meter_end_to_end.py 会 skip 并说明原因。
+
+# 判据集:按整机声明一次,设备用 criteria 引用它。
+# 合不合格由这里判,阈值不在代码里;实测值超了照样记录,只标记在读数上。
+# 边界可写 {设备参数: 系数},由组合根按设备自己的额定功率/容量换算。
+criteria_profiles:
+  grid_50hz:
+    - {quantity: grid_freq_hz, min: 45, max: 55}
+    - {quantity: grid_voltage_v, gt: 0}  # 严格大于 0:0V 不是合格电压
+    - {quantity: output_power_w, min: 0, max: {rated_power_w: 1.1}}
+    - {quantity: output_power_w, max: {rated_power_w: 0.9}, severity: warn}  # 软告警,不判不合格
+  battery_default:
+    - {quantity: voltage_v, gt: 0}  # 同上,0V 判不合格
+    - {quantity: soc_percent, min: 10, severity: warn}  # SOC 低于 10% 软告警
+  # 电表:判据量用的是读数键本身(点表的键),所以改点表不用改判据。
+  meter_220v:
+    - {quantity: 电压, min: 198, max: 242}
+    - {quantity: 有功电量, min: 0}
+
+# 型号:同一型号的点表、能力、判据集在这里声明一次。
+# 型号差异只出现在点表里:地址、长度(字节数)、编码、倍率、字节序、单位。
+# 点表项的键就是读数键——用例按「有功功率」取数,不按驱动方法名取数。
+models:
+  inverter_pv_series:
+    type: inverter
+    protocol: vendor_ascii
+    criteria: grid_50hz
+    capabilities: [有功功率, 电压, 频率]
+    # 该型号接受哪些设备级参数:设备实例只写这些名字,拼错一个就在装配前报错。
+    device_params: [rated_power_w]
+    # 该型号是文本行协议:address 是应答行里的字段序号,length 是最大字符数。
+    point_table:
+      有功功率: {address: 0, length: 8, encoding: ascii, unit: W}
+      电压: {address: 1, length: 7, encoding: ascii, unit: V}
+      频率: {address: 2, length: 7, encoding: ascii, unit: Hz}
+
+  battery_lfp_series:
+    type: battery
+    protocol: vendor_ascii
+    criteria: battery_default
+    capabilities: [SOC, 电压, 电流]
+    device_params: [capacity_ah]
+    point_table:
+      SOC: {address: 0, length: 6, encoding: ascii, unit: '%'}
+      电压: {address: 1, length: 7, encoding: ascii, unit: V}
+      电流: {address: 2, length: 7, encoding: ascii, unit: A}
+
+  # 周边设备的型号:和被测设备共用同一套声明(点表 / 能力 / 驱动 / 注册表)。
+  # 不写 criteria —— 周边设备不判合格,它的作用是为被测设备提供电网。
+  # 量名与地址占位同 configs/devices.yaml 的 grid_simulator_3ph(见那里的说明)。
+  grid_simulator_3ph:
+    type: grid_simulator
+    protocol: vendor_ascii
+    capabilities: [Ua, Ub, Uc, Ia, Ib, Ic, θa, θb, θc, QUaUb, QUaUc, Fre, 接线方式, MeterConst]
+    point_table:
+      Ua: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
+      Ub: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
+      Uc: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
+      Ia: {address: TODO, length: 7, encoding: ascii, unit: A, writable: true}
+      Ib: {address: TODO, length: 7, encoding: ascii, unit: A, writable: true}
+      Ic: {address: TODO, length: 7, encoding: ascii, unit: A, writable: true}
+      θa: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      θb: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      θc: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      QUaUb: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      QUaUc: {address: TODO, length: 7, encoding: ascii, unit: °, writable: true}
+      Fre: {address: TODO, length: 7, encoding: ascii, unit: Hz, writable: true}
+      接线方式: {address: TODO, length: 2, encoding: uint, writable: true}
+      MeterConst: {address: TODO, length: 2, encoding: uint, writable: true}
+
+  # Modbus RTU 电表:点表项 = 寄存器地址 / 字节数 / 编码 / 倍率 / 字节序。
+  # 换一个同规约的型号(地址或倍率不同)只需要在这上面加一段 yaml,零 Python 文件。
+  # 读法走点表驱动的通用读取路径,驱动里没有"电表"这两个字的特例分支。
+  dtsd1352_modbus:
+    type: meter
+    protocol: modbus_rtu
+    criteria: meter_220v
+    capabilities: [有功电量, 电压]
+    point_table:
+      有功电量: {address: 0, length: 4, encoding: uint, scale: 0.01, unit: kWh}
+      电压: {address: 2, length: 2, encoding: uint, scale: 0.1, unit: V}
+
+# 适用矩阵:型号 → 该型号实际跑哪些用例(用例编号前缀 或 tag:<标签>)。
+# 决定权在测试工程师手里:改矩阵就改变了某型号跑哪些测试项,不用碰代码。
+# 不在矩阵里出现的型号 = 不受限,它的用例全跑(漏测比多跑几条危险)。
+# 引用了不存在的编号/标签会在收集阶段报错,而不是静默少跑几根用例。
+# 按设备参数化的用例还要求:有 @case 身份,且至少一个型号的矩阵覆盖它——
+# 新加一条契约用例却忘了打 tag 时,收集阶段直接报错,不会静默变成全绿。
+test_matrix:
+  inverter_pv_series: [tag:一致性]
+  battery_lfp_series: [tag:一致性]
+  dtsd1352_modbus: [tag:一致性, M_00_00_01_000002]
+
+# 设备实例:只写 id、型号名、接入位置和设备自己的参数。点表/能力/判据集不在这里重复。
+devices:
+  - id: inv_01
+    model: inverter_pv_series
+    access: tcp
+    mode: simulator          # 改成 real 即可切换到真实 TCP 逆变器,驱动代码完全不用动
+    name: "逆变器-产线A-01"
+    rated_power_w: 5000
+    connection:
+      host: 192.168.1.50
+      port: 502
+      simulated_response: "3200.5 230.1 50.0"
+
+  # 同型号的第二个实例——加这一条配置,上面那份点表一个字都不用重复,
+  # 下面 tests/test_inverter.py 里所有通用契约测试会自动对它也跑一遍。
+  - id: inv_03
+    model: inverter_pv_series
+    access: tcp
+    mode: simulator
+    name: "逆变器-产线A-03"
+    rated_power_w: 5000
+    connection:
+      host: 192.168.1.52
+      port: 502
+      simulated_response: "4500.0 229.8 50.1"
+
+  - id: bat_01
+    model: battery_lfp_series
+    access: serial
+    mode: simulator
+    name: "电池组-产线A-01"
+    capacity_ah: 100
+    connection:
+      port: /dev/ttyUSB0
+      baudrate: 9600
+      simulated_response: "76.5 51.2 -3.4"
+
+  # 示例:经工控机网关转发接入的逆变器——同一个型号,只换接入方式。
+  # inverter_driver.py / domain/inverter.py 一行代码都没有改。
+  - id: inv_02_via_ipc
+    model: inverter_pv_series
+    access: gateway_ssh
+    mode: simulator          # 真实环境改成 real:会 SSH 登录工控机,转发到它本地的 CAN/串口
+    name: "逆变器-产线B-经工控机接入"
+    rated_power_w: 8000
+    connection:
+      gateway_host: 10.0.0.5
+      gateway_user: test
+      gateway_key_path: ~/.ssh/id_rsa
+      local_bus: can0
+      simulated_response: "6100.0 231.5 49.9"
+
+  # Modbus RTU 电表:这一条在这份清单里走真实 socket。
+  # access: tcp 是"RTU 帧走 TCP"(串口服务器的常见形态),不是 Modbus TCP —— 帧里没有 MBAP 头。
+  # 寄存器值不在这份清单里,在 mock 侧的 configs/mock_registers.yaml。
+  # bus_address 是 Modbus 从站地址(1–247),缺了装配前就报错。
+  - id: meter_01
+    model: dtsd1352_modbus
+    access: tcp
+    mode: real
+    name: "电表-台区A-01"
+    bus_address: 1
+    connection:
+      host: 127.0.0.1
+      port: 15020
+
+  # 周边设备:role: support。上面几台被测设备共用这一台电网模拟器——
+  # 清单里只声明一个实例,用例按 id 取到的是同一个对象。
+  # 它在装配时先连接(CompositionRoot.connect_support);连不上 =
+  # 结论"测试无效"(skip),不是被测设备不合格。契约测试也不对它展开。
+  - id: grid_sim_01
+    model: grid_simulator_3ph
+    role: support
+    access: tcp
+    mode: simulator
+    name: "电网模拟器-台架1"
+    connection:
+      host: 192.168.1.60
+      port: 502
+      simulated_grid: true
+      simulated_response: "230.0 50.0"

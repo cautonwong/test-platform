@@ -1,0 +1,38 @@
+# 符号值(Un / In / Hz)→ **型号参数名**,不是常数。
+#
+# 上游条款的「调整台体」块里有符号值:`Ua=Un`(额定电压)、`Fre=Hz`(额定频率)、
+# `Ia=Ib`(基本电流)。同一个符号在不同被试品上是不同的数 —— 单相 220 与 3×(220/380)、
+# 50Hz 与 60Hz 都要用同一套条款跑。所以这张表只回答"这个符号要哪个设备参数",
+# 值由型号声明(device_params)+ 设备实例上给的那个数决定。
+#
+# 三条硬规矩(与"不猜"一致):
+#   1. **没有 fallback 这一档。** 型号没声明参数、或者实例上没给值,导入直接拒收并点名,
+#      不拿 220 / 50 兜底 —— 电压猜错的后果是台架设错电压,而且看起来一切正常。
+#      未知键(比如 fallback / value)在导入时报错,写不进来。
+#   2. 几台同型号实例给的值不一样时也拒收:条款里只有一列值,挑第一台就是编。
+#   3. 符号只在**取值**的位置查这张表(`Ua=Un`);量名位置的 Un 不是本表的事。
+#
+# 出处:`source` 指上游那一行,`expect` 是那一行的原文。参数名叫什么由本仓定 ——
+# 命名沿用 configs/devices.yaml 判据集里已有的 rated_power_w。
+#
+# 注意 13通信 里 `Ia=Ib` / `Ib=Ib` / `Ic=Ib` 的 Ib 是**表的基本电流**(DL/T 645 的 Ib,
+# 与 IEC 的 In 同一个量但取值不同:两者中间有换算,合成一个参数就会错)。所以本表**没有**
+# Ib:它进覆盖率报表的"符号值认不出"一档,等写用例的人确认之后再补一行 ——
+# **若确认是基本电流,参数名用 `basic_current_a`**(不并进 rated_current_a)。
+Un:
+  param: rated_phase_voltage_v
+  unit: V
+  source: "tests/param.py:13"
+  expect: "Un = 230"
+  note: 相电压,不是线电压 —— 三相四线表 Ua=Un 填 220;名字带 phase 是为了让填 380 的人先停一下。
+    上游这套用例写 Un = 230V,本仓手写样板写 220 —— 两个数都对(不同被试品),所以值只能按型号给。
+In:
+  param: rated_current_a
+  unit: A
+  source: "tests/param.py:15"
+  expect: "In = 5"
+Hz:
+  param: rated_freq_hz
+  unit: Hz
+  source: "tests/param.py:19"
+  expect: "Hz = 50"

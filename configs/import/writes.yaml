@@ -1,0 +1,230 @@
+# 写入格式:DL/T645 数据的 DI / 长度 / 类型 / 图例换算,全部从上游 p645dict.py 反查。
+#
+# 票 43 把「写入格式」列进了「要资料清单」。票 44 的结论:它一直在上游 —— p645dict.py 每条记录
+# 是一个 12 元组,第 0 位是数据标识(DI)、第 1 位是 c、第 2 位是长度、第 3 位是数据类型;
+# 文件头 1-20 行是类型图例(Date = YYMMDDWW、Time = hhmmss、String = 定长字符串)。所以
+# 「时钟写 YYMMDDWW 4 字节」「通信地址写 6 字节字符串」不用手册,这里就是它们的机器可读形态。
+#
+# 校验:python tools/check_import_sources.py --upstream <上游目录>
+# 脚本用这条记录自己的 di/c/length/type 拼出 "'名字':('DI', c, length, 'type'" 去上游那一行比对。
+# 抄错一位、行号差一行、名字差一个字都会红 —— 提取类工作最典型的错法,人眼抽查挡不住。
+#
+# 图例换算(legend.digits = 2 * 字段的 length)是**推论**,不是上游写明的字:
+# 8 个字母布局配 4 字节,只能是每字节两位十进制(BCD)。线上顺序是 DL/T645 的低字节先发,
+# 与 src/testplatform/protocol/dlt645.py 里地址域/数据标识的规则同一条。
+# 字节对得上的实证在 tests_unit/test_p645_write_format.py(不连设备)。
+#
+# '96' / '03' 是 tuple 第 9 位(0 基)。上游第 23 行的字段注释在这里对不上 12 元组
+# (注释把 'w', '', '03', rw=…, rule='03,04,96,97' 挤在一段),所以只记原值:
+# **疑似权限等级,含义未证实**。不许当通信密码、不许当密级去实现。
+#
+# 不许把这些 DI 当 Modbus 寄存器地址:DL/T645 DI ≠ DLMS OBIS ≠ Modbus 寄存器,三套编号体系。
+# 也不许因为 DI 有出处就撤掉 mode: real 守卫 —— DI 有出处 ≠ 台架/设备地址已就位。
+
+# 类型图例:source 指到 p645dict.py 那一行,layout 必须出现在那一行上。
+# digits = 这个类型占几位十进制数字(用于与 tuple 的 length 交叉核对:2 位 = 1 字节)。
+legend:
+  Date:
+    layout: YYMMDDWW
+    fields_zh: 年 月 日 星期
+    digits: 8
+    source: "common/p645dict.py:5"
+  Time:
+    layout: hhmmss
+    fields_zh: 时 分 秒
+    digits: 6
+    source: "common/p645dict.py:6"
+  DateWeekTime:
+    layout: YYMMDDWWhhmmss
+    fields_zh: 年 月 日 星期 时 分 秒
+    digits: 14
+    source: "common/p645dict.py:8"
+  String:
+    layout: null
+    fields_zh: 定长字符串(上游只给长度,没给每字节怎么编)
+    digits: null
+    source: "common/p645dict.py:18"
+  Integer:
+    layout: null
+    fields_zh: 数值(图例只写"数值",字节布局没给)
+    digits: null
+    source: "common/p645dict.py:17"
+
+# 每条一个 DI。used_by 是「哪个条款参数落到它身上」,不新增语义,只做反查索引。
+fields:
+  "04000101":
+    name_upstream: "计量单元参变量日期及星期(其中0代表星期天)"
+    c: 256
+    length: 4
+    type: Date
+    used_by: "时钟"
+    source: "common/p645dict.py:4915"
+  "04000102":
+    name_upstream: "计量单元参变量时间"
+    c: 256
+    length: 3
+    type: Time
+    used_by: "时钟"
+    source: "common/p645dict.py:4916"
+  "0400010C":
+    name_upstream: "计量单元参变量年月日星期时分秒"
+    c: 256
+    length: 7
+    type: DateWeekTime
+    used_by: "时钟(同族:年月日星期时分秒一次写全)"
+    source: "common/p645dict.py:4917"
+  "0400010D":
+    name_upstream: "计量单元参变量电能表蓝牙MAC地址"
+    c: 256
+    length: 6
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4918"
+  "04000401":
+    name_upstream: "计量单元参变量通信地址"
+    c: 256
+    length: 6
+    type: String
+    used_by: "表地址"
+    source: "common/p645dict.py:4919"
+  "04000402":
+    name_upstream: "计量单元参变量表号"
+    c: 256
+    length: 6
+    type: String
+    used_by: "表地址(同族:表号)"
+    source: "common/p645dict.py:4920"
+  "04000403":
+    name_upstream: "计量单元参变量资产管理编码(ASCII码)"
+    c: 256
+    length: 32
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4921"
+  "04000404":
+    name_upstream: "计量单元参变量额定电压(ASCII码)"
+    c: 256
+    length: 6
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4922"
+  "04000405":
+    name_upstream: "计量单元参变量额定电流/基本电流(ASCII码)"
+    c: 256
+    length: 6
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4923"
+  "04000406":
+    name_upstream: "计量单元参变量最大电流(ASCII码)"
+    c: 256
+    length: 6
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4925"
+  "04000407":
+    name_upstream: "计量单元参变量有功准确度等级(ASCII码)"
+    c: 256
+    length: 4
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4926"
+  "04000408":
+    name_upstream: "计量单元参变量无功准确度等级(ASCII码)"
+    c: 256
+    length: 4
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4927"
+  "04000409":
+    name_upstream: "计量单元参变量电表有功常数"
+    c: 256
+    length: 3
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4928"
+  "0400040A":
+    name_upstream: "计量单元参变量电表无功常数"
+    c: 256
+    length: 3
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4929"
+  "04000410":
+    name_upstream: "计量单元参变量计量单元生产日期(ASCII码)"
+    c: 256
+    length: 10
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4930"
+  "04000411":
+    name_upstream: "计量单元参变量计量单元协议版本号(ASCII码)"
+    c: 256
+    length: 16
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4931"
+  "04000412":
+    name_upstream: "计量单元参变量管理单元辨识码(ASCII码)"
+    c: 256
+    length: 32
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4932"
+  "04000413":
+    name_upstream: "计量单元参变量计量单元资产管理编码"
+    c: 256
+    length: 32
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4933"
+  "04000414":
+    name_upstream: "计量单元参变量计量单元型号(ASCII码)"
+    c: 256
+    length: 10
+    type: String
+    used_by: "同族,5 个参数里没有条款直接写它"
+    source: "common/p645dict.py:4934"
+  "04000701":
+    name_upstream: "调制型红外光口通信速率特征字"
+    c: 256
+    length: 1
+    type: String
+    used_by: "红外通信波特率"
+    source: "common/p645dict.py:80840"
+  "04000702":
+    name_upstream: "接触式红外光口通信速率特征字"
+    c: 256
+    length: 1
+    type: String
+    used_by: "红外通信波特率"
+    source: "common/p645dict.py:80841"
+  "04000703":
+    name_upstream: "通信口1通信速率特征字"
+    c: 256
+    length: 1
+    type: String
+    used_by: "RS485通信波特率"
+    source: "common/p645dict.py:80842"
+  "04000704":
+    name_upstream: "通信口2通信速率特征字"
+    c: 256
+    length: 1
+    type: String
+    used_by: "RS485通信波特率"
+    source: "common/p645dict.py:80843"
+  "04000705":
+    name_upstream: "通信口3通信速率特征字"
+    c: 256
+    length: 1
+    type: String
+    used_by: "RS485通信波特率"
+    source: "common/p645dict.py:80844"
+
+# 条款里有、上游字典里 0 命中的:只有这一个。反向断言在 writable_params.yaml 的 name_needle
+# (在 5 份上游字典里必须 0 命中,上游哪天补了会红)。
+no_field_found:
+  通信模式: >-
+    全仓只有 pypack/pyproto/README.md:33 一句注释(指链路层 ConnectionModes.HDLC),
+    那不是表内可写点。没有 DI ⇒ 没有长度、没有类型、没有图例换算可言。
+    要手册:这个参数在表里到底叫什么、DI 或寄存器地址是什么。

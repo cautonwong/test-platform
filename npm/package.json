@@ -1,0 +1,21 @@
+{
+  "name": "@cautonwong/testplatform",
+  "version": "0.1.0",
+  "description": "任务驱动的端到端测试平台 —— npx 只是外壳,写的是 Python",
+  "bin": {
+    "testplatform": "cli/index.js"
+  },
+  "files": [
+    "cli/",
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prepack": "node cli/prepack.js",
+    "test": "node --test test/"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
