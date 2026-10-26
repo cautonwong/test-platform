@@ -1185,7 +1185,14 @@ def _product_file(launch: list[str], root: Path) -> Path | None:
         path = Path(argument)
         if not path.is_absolute():
             path = root / path
-        if path.is_file() and path != interpreter:
+        try:
+            is_product_file = path.is_file()
+        except (OSError, ValueError):
+            # `python -c "<source>"` 的源码参数也是 argv 的一项,但不是路径。
+            # 超长参数会让 stat 报 ENAMETOOLONG;这里只需回答"它是不是产品文件",
+            # 不可检查的 argv 不是文件,继续看后面的参数。
+            is_product_file = False
+        if is_product_file and path != interpreter:
             return path
     return None
 
