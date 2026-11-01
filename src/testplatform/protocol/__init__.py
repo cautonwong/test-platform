@@ -9,7 +9,7 @@
 """
 from __future__ import annotations
 
-from . import dlt645, modbus_rtu, modbus_tcp
+from . import dlt645, dlt698, modbus_rtu, modbus_tcp, mqtt_json
 from .crc import crc16, crc16_modbus
 from .values import decode_value, encode_value
 
@@ -21,4 +21,6 @@ __all__ = [
     "dlt645",
     "modbus_rtu",
     "modbus_tcp",
+    "mqtt_json",
+    "dlt698",
 ]

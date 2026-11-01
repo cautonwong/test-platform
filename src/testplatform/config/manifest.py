@@ -156,6 +156,9 @@ PROTOCOL_ACCESS: Dict[str, frozenset] = {
     "modbus_rtu": frozenset({"serial", "gateway_ssh", "tcp"}),
     "modbus_tcp": frozenset({"tcp"}),
     "canopen": frozenset({"can"}),
+    # 族 B：DUT 当 DL/T 698.45 从站，平台当主站去问属性。今天只走 tcp
+    # （台架把产品的 unix socket 桥成 TCP）与 serial（现场串口直连）。
+    "dlt698": frozenset({"tcp", "serial"}),
 }
 
 # 传输已实现、但没有任何规约声明支持这三种接入方式:
@@ -170,7 +173,7 @@ TRANSPORT_ONLY_ACCESS = frozenset({"http", "mqtt", "ssh"})
 # 这些规约的请求帧里要带从站地址:设备实例必须写 bus_address。
 # Modbus RTU 用 1–247 的整数;Modbus TCP 的这个字段是 MBAP 头里的单元号(常用来区分
 # 同一网关后面的串口从站,同样 1–247);DL/T645 用 12 位 BCD 表地址(如 "000000000001")。
-BUS_ADDRESS_PROTOCOLS = frozenset({"modbus_rtu", "modbus_tcp", "dlt645"})
+BUS_ADDRESS_PROTOCOLS = frozenset({"modbus_rtu", "modbus_tcp", "dlt645", "dlt698"})
 DLT645_ADDRESS_DIGITS = 12
 
 # CAN 接入的接口类型(python-can 的 bustype)。socketcan 是 Linux 内核专有:
@@ -1351,6 +1354,13 @@ def _validate_bus_address(where: str, value: Any, model_name: str, protocol: str
             raise ValueError(
                 f"{where}: bus_address 必须是 {DLT645_ADDRESS_DIGITS} 位 BCD 表地址"
                 f'(如 "000000000001"),拿到 {value!r}'
+            )
+        return
+    if protocol == "dlt698":
+        # 698 的 SA 是 1…16 字节地址；点表与用例目前只用单字节，这里按 1–255 校验。
+        if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 255:
+            raise ValueError(
+                f"{where}: bus_address 是 698 的服务器地址 SA(单字节 1–255),拿到 {value!r}"
             )
         return
     if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 247:
