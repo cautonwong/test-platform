@@ -620,12 +620,31 @@ class RealMqttTransport:
     def publish(self, topic: str, payload: bytes, qos: int = 0) -> None:
         self._client.publish(topic, payload, qos=qos)
 
-    def subscribe(self, topic: str, handler: Callable[[str, bytes], None]) -> None:
+    def subscribe(self, topic: str, handler: Callable[[str, bytes], None],
+                  timeout: float = 5.0) -> None:
+        # 与 connect() 等 CONNACK 同一个道理:paho 的 subscribe() 只是把 SUBSCRIBE 发出去,
+        # 返回时 broker 还没认。不等 SUBACK 就返回,调用方会以为"已经订上了",
+        # 紧接着发的消息就丢在订阅生效之前 —— 现象是"设备没发",实际是订阅晚了。
+        acked = threading.Event()
+        granted: list[int] = []
+
+        def _on_subscribe(_client, _userdata, _mid, granted_qos, properties=None) -> None:
+            # paho 1.x 给 4 个参数、2.x 给 5 个:两者都要收,否则 2.x 上回调直接 TypeError。
+            granted.append(granted_qos[0] if granted_qos else 0x80)
+            acked.set()
+
         def _on_message(client, userdata, msg) -> None:
             handler(msg.topic, msg.payload)
 
+        self._client.on_subscribe = _on_subscribe
         self._client.on_message = _on_message
-        self._client.subscribe(topic)
+        rc, _mid = self._client.subscribe(topic)
+        if rc != 0:
+            raise ConnectionError(f"订阅 {topic} 被拒:paho subscribe() 返回 {rc}")
+        if not acked.wait(timeout):
+            raise TimeoutError(f"{timeout} 秒内没收到 SUBACK(主题 {topic}):订阅没生效")
+        if granted and granted[0] == 0x80:
+            raise ValueError(f"broker 拒绝订阅 {topic}(granted_qos=0x80)")
 
 
 # 已注册但清单不可达:access: mqtt 会被 parse_manifest 拒绝(没有规约声明支持它),

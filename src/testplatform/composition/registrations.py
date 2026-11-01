@@ -28,4 +28,6 @@ from testplatform.drivers import battery_driver  # noqa: F401
 from testplatform.drivers import grid_simulator_driver  # noqa: F401
 from testplatform.drivers import inverter_driver  # noqa: F401
 from testplatform.drivers import meter_driver  # noqa: F401
+# 族 B：DUT 当 DL/T 698.45 从站，平台当主站读属性（帧向量见 EdgeC docs 附录 H）
+from testplatform.drivers import dlt698_master_driver  # noqa: F401
 from testplatform.drivers import terminal_driver  # noqa: F401

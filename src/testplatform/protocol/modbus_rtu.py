@@ -208,6 +208,18 @@ def build_write_multiple_response(
     return body + _crc_bytes(body)
 
 
+def build_write_single_response(
+    slave: int, address: int, value: int, function: int = WRITE_SINGLE_REGISTER
+) -> bytes:
+    """从站侧构造写单个寄存器的应答:回显地址与值（标准规定 0x06 的应答是回显）。
+
+    与 `build_write_multiple_response` 的区别是实打实的:0x06 回显"地址+值",
+    0x10 只回"地址+数量"。混用会让主站的回显校验失败——它会以为写错了寄存器。
+    """
+    body = bytes([slave, function]) + address.to_bytes(2, "big") + value.to_bytes(2, "big")
+    return body + _crc_bytes(body)
+
+
 def parse_write_multiple_response(
     frame: bytes,
     slave: int,

@@ -22,6 +22,17 @@ from typing import Any, Tuple
 FRAME_START = 0x68
 FRAME_END = 0x16
 READ_DATA = 0x11
+# 跳合闸/报警/保电（标准 7.13）：请求 1CH、正常应答 9CH、异常应答 DCH。
+CONTROL = 0x1C
+CONTROL_RESPONSE = 0x9C
+CONTROL_ERROR = 0xDC
+# 数据域 N1：控制命令类型（标准 7.13 注 1）
+CMD_TRIP = 0x1A
+CMD_ALLOW_CLOSE = 0x1B
+CMD_ALARM = 0x2A
+CMD_ALARM_CLEAR = 0x2B
+CMD_KEEP_POWER = 0x3A
+CMD_KEEP_CLEAR = 0x3B
 _RESPONSE_FLAG = 0x80
 _EXCEPTION_FLAG = 0x40
 DATA_OFFSET = 0x33
@@ -112,8 +123,43 @@ def _build_frame(meter_address: str, control: int, data: bytes) -> bytes:
     return body + bytes([sum(body) & 0xFF, FRAME_END])
 
 
+def parse_control_request(frame: bytes) -> Tuple[str, int, bytes]:
+    """从站侧解析跳合闸/报警/保电请求（控制码 1CH，标准 7.13）。
+
+    帧：`68 A0..A5 68 1C L PA P0P1P2 C0..C3 N1..Nm CS 16`，数据域每字节 +33H。
+
+    返回 `(表地址, N1 命令类型, 数据域原始字节已减 33H)`。
+    N1 在密码(4) + 操作者代码(4) 之后，即数据域第 9 个字节。
+
+    单独一个函数而不是塞进 `parse_read_request`：读帧的数据域以 4 字节数据标识开头，
+    控制帧以密码开头 —— 用同一个解析器会把密码当数据标识，读出一个"看着像"的 DI。
+    """
+    address_bytes, control, raw = _parse_frame(frame)
+    if control != CONTROL:
+        raise ValueError(f"不是控制命令帧(控制码 {control:#04x}): {frame.hex()}")
+
+    data = bytes((b - DATA_OFFSET) & 0xFF for b in raw)
+    if len(data) < 10:
+        raise ValueError(
+            f"控制命令数据域至少要 密码4+操作者4+N1+N2 = 10 字节,收到 {len(data)}: {frame.hex()}"
+        )
+    address = "".join(f"{b:02x}" for b in reversed(address_bytes))
+    return address, data[8], data
+
+
+def build_control_response(meter_address: str) -> bytes:
+    """跳合闸正常应答：`68 地址 68 9C 00 CS 16`（L=00，无数据域）。"""
+    return _build_frame(meter_address, CONTROL_RESPONSE, b"")
+
+
 def _parse_frame(frame: bytes) -> Tuple[bytes, int, bytes]:
-    """校验帧定界符、长度与 CS,返回 (地址域原始字节, 控制码, 数据域的原始字节)。"""
+    """校验帧定界符、长度与 CS,返回 (地址域原始字节, 控制码, 数据域的原始字节)。
+
+    **先丢掉前导符 FE**：标准 5.3.1 规定主站发帧前先发 4 个 FEH 唤醒接收方，
+    真实电表收到后直接丢弃。台架如果不去掉，控制命令帧会被当成"帧定界符不对"
+    —— 现象是产品明明发出去了、台架记成 `<unparsed>`。
+    """
+    frame = frame.lstrip(b"\xfe") if frame.startswith(b"\xfe") else frame
     if len(frame) < _MIN_FRAME:
         raise ValueError(f"帧太短,DL/T645 最短 {_MIN_FRAME} 字节: {frame.hex()}")
     if frame[0] != FRAME_START or frame[7] != FRAME_START or frame[-1] != FRAME_END:
