@@ -1,0 +1,303 @@
+"""WebUI 平台端到端用例(EdgeC `web/` 重构的验收面)。
+
+判据来源:`web/docs/边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md`
+  §5.2 权限语义 / §7.1 API 约定 / §7.2 授权映射 / §6.4 配置事务 / §14.1 release-scope。
+
+每条用例都**只断言服务端可见的事实**(状态码、错误码、状态机、摘要),不看界面。
+界面上"看起来对了"不算通过——这是这套用例存在的理由。
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from testplatform.cases import case
+
+from webui_helpers import EDGEC_WEB, Client, write_evidence
+
+CLAUSE = "free: WebUI 平台设计 v1.6 §7.2 授权映射"
+
+
+def _record(case_id: str, **fields) -> None:
+    write_evidence(case_id, {"caseId": case_id, "clause": CLAUSE, **fields})
+
+
+@case(id="WUI_00_00_01_000001", clause=CLAUSE, tags=["一致性", "认证"])
+def test_anonymous_allowlist_is_exactly_two_endpoints(iems: Client) -> None:
+    """匿名只允许 system/info 与 auth/login;能力接口必须要求登录。"""
+    info = iems.request("GET", "/api/v1/system/info")
+    assert info.status == 200, f"匿名 system/info 应放行,实际 {info.status}"
+    assert set(info.body) <= {"productId", "displayName", "language", "themeVersion", "loginHint"}, (
+        f"匿名接口返回了 allowlist 之外的字段: {sorted(info.body)}"
+    )
+
+    capabilities = iems.request("GET", "/api/v1/system/capabilities")
+    assert capabilities.status == 401, f"未登录读能力快照应 401,实际 {capabilities.status}"
+    _record(
+        "WUI_00_00_01_000001",
+        anonymousFields=sorted(info.body),
+        capabilitiesStatus=capabilities.status,
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000002", clause=CLAUSE, tags=["越权", "负向"])
+def test_viewer_cannot_create_user(iems: Client) -> None:
+    """viewer 直接打管理接口必须 403,且错误体带稳定错误码与 requestId。"""
+    assert iems.login("viewer", "Viewer-Pass-2026").status == 200
+    response = iems.request("POST", "/api/v1/users", {"username": "x"})
+    assert response.status == 403, f"越权创建用户应 403,实际 {response.status}"
+    assert response.code == "permission_denied", f"错误码应为 permission_denied,实际 {response.code}"
+    assert response.body.get("requestId"), "错误体缺少 requestId(无法与审计关联)"
+    _record("WUI_00_00_01_000002", status=response.status, code=response.code, verdict="product_ok")
+
+
+@case(id="WUI_00_00_01_000003", clause=CLAUSE, tags=["能力", "负向"])
+def test_capability_gate_rejects_cellular_on_iems(iems: Client) -> None:
+    """iEMS 台架型号没有蜂窝模块:接口必须 403 capability_unavailable。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+    response = iems.request("GET", "/api/v1/network/cellular")
+    assert response.status == 403, f"能力缺失应 403,实际 {response.status}"
+    assert response.code == "capability_unavailable", f"错误码应为 capability_unavailable,实际 {response.code}"
+    _record("WUI_00_00_01_000003", status=response.status, code=response.code, verdict="product_ok")
+
+
+@case(id="WUI_00_00_01_000004", clause="free: WebUI 平台设计 v1.6 §14.1 release-scope 裁剪", tags=["裁剪", "一致性"])
+def test_release_scope_removes_upgrade_route_on_iems_but_keeps_on_dcu(iems: Client, dcu: Client) -> None:
+    """同一接口在两款产品上的差异,证明裁剪是按 release-scope 生效而不是按代码分支。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+    iems_response = iems.request("POST", "/api/v1/system/upgrade", {})
+    assert iems_response.status == 404, f"iEMS 关闭了升级,路由不应存在,实际 {iems_response.status}"
+    assert iems_response.code == "not_found"
+
+    assert dcu.login("engineer", "Engineer-Pass-2026").status == 200
+    dcu_response = dcu.request("POST", "/api/v1/system/upgrade", {})
+    assert dcu_response.status == 403, f"DCU 启用了升级,应是权限不足而不是路由缺失,实际 {dcu_response.status}"
+    assert dcu_response.code == "permission_denied"
+
+    _record(
+        "WUI_00_00_01_000004",
+        iemsStatus=iems_response.status,
+        dcuStatus=dcu_response.status,
+        dcuCode=dcu_response.code,
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000005", clause="free: WebUI 平台设计 v1.6 §5.6 浏览器安全", tags=["安全", "CSRF"])
+def test_csrf_and_origin_are_enforced(iems: Client) -> None:
+    """状态变更缺 CSRF → 403;伪造 Origin → 403。两者都不能被"正常请求"掩盖。"""
+    assert iems.login("viewer", "Viewer-Pass-2026").status == 200
+
+    forged_csrf = iems.request("POST", "/api/v1/auth/logout", {}, headers={"X-CSRF-Token": "forged"})
+    assert forged_csrf.status == 403 and forged_csrf.code == "csrf_failed", (
+        f"伪造 CSRF 应被拒,实际 {forged_csrf.status}/{forged_csrf.code}"
+    )
+
+    forged_origin = iems.request("POST", "/api/v1/auth/logout", {}, headers={"Origin": "http://evil.example"})
+    assert forged_origin.status == 403 and forged_origin.code == "origin_not_allowed", (
+        f"伪造 Origin 应被拒,实际 {forged_origin.status}/{forged_origin.code}"
+    )
+
+    _record(
+        "WUI_00_00_01_000005",
+        csrfStatus=forged_csrf.status,
+        originStatus=forged_origin.status,
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000006", clause=CLAUSE, tags=["会话", "撤销"])
+def test_logout_revokes_session_immediately(iems: Client) -> None:
+    """登出后同一 Cookie 再访问必须 401(不是靠前端跳转)。"""
+    assert iems.login("viewer", "Viewer-Pass-2026").status == 200
+    assert iems.request("GET", "/api/v1/auth/me").status == 200
+    assert iems.request("POST", "/api/v1/auth/logout", {}).status in (200, 204)
+
+    after = iems.request("GET", "/api/v1/auth/me")
+    assert after.status == 401, f"登出后应 401,实际 {after.status}"
+    _record("WUI_00_00_01_000006", afterStatus=after.status, verdict="product_ok")
+
+
+@case(id="WUI_00_00_01_000007", clause="free: WebUI 平台设计 v1.6 §5.6 首次改密", tags=["认证", "口令"])
+def test_first_login_must_change_password(iems: Client) -> None:
+    """初始口令登录后 mustChangePassword=true;弱口令被拒;强口令后置为 false。"""
+    response = iems.login("admin", "Initial-EdgeOS-2026")
+    assert response.status == 200, f"初始口令应可登录,实际 {response.status}"
+    assert response.body["user"]["mustChangePassword"] is True, "首登必须标记为需要改密"
+
+    weak = iems.request("POST", "/api/v1/auth/password", {"currentPassword": "Initial-EdgeOS-2026", "newPassword": "short"})
+    assert weak.status == 400 and weak.code == "weak_password", f"弱口令应被拒,实际 {weak.status}/{weak.code}"
+
+    strong = iems.request(
+        "POST",
+        "/api/v1/auth/password",
+        {"currentPassword": "Initial-EdgeOS-2026", "newPassword": "Bench-EdgeOS-2026!"},
+    )
+    assert strong.status in (200, 204), f"强口令应被接受,实际 {strong.status}"
+
+    me = iems.request("GET", "/api/v1/auth/me")
+    assert me.body["mustChangePassword"] is False, "改密后必须清除 mustChangePassword"
+    _record("WUI_00_00_01_000007", weakStatus=weak.status, finalFlag=me.body["mustChangePassword"], verdict="product_ok")
+
+
+@case(id="WUI_00_00_01_000008", clause="free: WebUI 平台设计 v1.6 §6.4 配置事务", tags=["事务", "状态机"])
+def test_config_transaction_state_machine(iems: Client) -> None:
+    """DRAFT → PENDING_CONFIRM → CONFIRMED,且 confirm 幂等。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+
+    # 配置分区权限是逐 section 解析的:engineer 有 system.time:write 与 network.interface:write,
+    # 但没有 network.firewall:write(安全敏感 R3)
+    forbidden = iems.request(
+        "POST",
+        "/api/v1/config/transactions",
+        {"sectionId": "network.firewall", "values": {}},
+    )
+    assert forbidden.status == 403 and forbidden.code == "permission_denied", (
+        f"engineer 不应能改网络接口,实际 {forbidden.status}/{forbidden.code}"
+    )
+
+    created = iems.request(
+        "POST",
+        "/api/v1/config/transactions",
+        {"sectionId": "network.interfaces", "values": {"interfaceId": "eth0", "addresses": ["192.168.10.31/24"], "mtu": 1500}},
+    )
+    assert created.status == 201, f"创建事务应 201,实际 {created.status}"
+    transaction_id = created.body["transactionId"]
+    assert created.body["state"] == "DRAFT"
+
+    applied = iems.request("POST", f"/api/v1/config/transactions/{transaction_id}/apply", {})
+    assert applied.status == 200 and applied.body["state"] == "PENDING_CONFIRM", (
+        f"apply 后应进入 PENDING_CONFIRM,实际 {applied.status}/{applied.body.get('state')}"
+    )
+    assert applied.body.get("deadline"), "R2 事务必须带确认 deadline(回滚由设备侧 watchdog 负责)"
+
+    confirmed = iems.request("POST", f"/api/v1/config/transactions/{transaction_id}/confirm", {})
+    assert confirmed.status == 200 and confirmed.body["state"] == "CONFIRMED"
+
+    again = iems.request("POST", f"/api/v1/config/transactions/{transaction_id}/confirm", {})
+    assert again.status == 200 and again.body.get("idempotent") is True, "重复 confirm 必须幂等返回"
+
+    _record(
+        "WUI_00_00_01_000008",
+        transactionId=transaction_id,
+        finalState=confirmed.body["state"],
+        idempotent=again.body.get("idempotent"),
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000009", clause="free: WebUI 平台设计 v1.6 §6.4 回滚", tags=["事务", "回滚"])
+def test_config_transaction_rollback(iems: Client) -> None:
+    """应用后未确认即回滚:状态必须是 ROLLED_BACK,不能停在 PENDING_CONFIRM。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+    created = iems.request(
+        "POST",
+        "/api/v1/config/transactions",
+        {"sectionId": "network.interfaces", "values": {"interfaceId": "eth0", "addresses": ["192.168.10.32/24"]}},
+    )
+    transaction_id = created.body["transactionId"]
+    iems.request("POST", f"/api/v1/config/transactions/{transaction_id}/apply", {})
+
+    rolled = iems.request("POST", f"/api/v1/config/transactions/{transaction_id}/rollback", {})
+    assert rolled.status == 200 and rolled.body["state"] == "ROLLED_BACK", (
+        f"回滚后应 ROLLED_BACK,实际 {rolled.status}/{rolled.body.get('state')}"
+    )
+    _record("WUI_00_00_01_000009", state=rolled.body["state"], verdict="product_ok")
+
+
+@case(id="WUI_00_00_01_000010", clause="free: WebUI 平台设计 v1.6 §7.1 幂等", tags=["幂等", "任务"])
+def test_idempotency_key_returns_same_task_and_conflicts_on_different_body(iems: Client) -> None:
+    """同 key 同摘要返回同一 taskId;同 key 不同摘要必须 409。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+    headers = {"Idempotency-Key": "wui-e2e-1"}
+
+    first = iems.request("POST", "/api/v1/system/services/collector/actions/restart", {}, headers=headers)
+    assert first.status == 200, f"首次请求应受理,实际 {first.status}"
+    second = iems.request("POST", "/api/v1/system/services/collector/actions/restart", {}, headers=headers)
+    assert second.body["taskId"] == first.body["taskId"], "相同幂等键必须复用同一任务"
+
+    conflict = iems.request(
+        "POST",
+        "/api/v1/system/services/collector/actions/restart",
+        {"unexpected": True},
+        headers=headers,
+    )
+    assert conflict.status == 409 and conflict.code == "idempotency_conflict", (
+        f"同键不同摘要应 409,实际 {conflict.status}/{conflict.code}"
+    )
+    _record(
+        "WUI_00_00_01_000010",
+        taskId=first.body["taskId"],
+        conflictStatus=conflict.status,
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000011", clause="free: WebUI 平台设计 v1.6 §7.5 task-cancel-v1", tags=["任务", "取消"])
+def test_task_cancel_requires_owner_or_admin_permission(iems: Client) -> None:
+    """engineer 创建的任务,viewer 取消必须 403;创建者自己取消成功。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+    created = iems.request("POST", "/api/v1/system/services/northbound/actions/restart", {})
+    task_id = created.body["taskId"]
+
+    other = Client(iems.base)
+    assert other.login("viewer", "Viewer-Pass-2026").status == 200
+    denied = other.request("POST", f"/api/v1/tasks/{task_id}/cancel", {})
+    assert denied.status == 403, f"非创建者取消应 403,实际 {denied.status}"
+
+    owner = iems.request("POST", f"/api/v1/tasks/{task_id}/cancel", {})
+    assert owner.status == 200 and owner.body["state"] == "CANCELED", (
+        f"创建者取消应成功,实际 {owner.status}/{owner.body.get('state')}"
+    )
+    _record(
+        "WUI_00_00_01_000011",
+        deniedStatus=denied.status,
+        ownerState=owner.body["state"],
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000012", clause="free: WebUI 平台设计 v1.6 §7.4 静态 Registry", tags=["构建", "一致性"])
+def test_registry_digest_and_route_table_are_consistent(iems_server, dcu_server) -> None:
+    """Registry 是构建产物:摘要必须存在,且接口表与 release-scope 结论一致。"""
+    iems = json.loads((EDGEC_WEB / "products/iems/src/generated/registry.json").read_text(encoding="utf-8"))
+    dcu = json.loads((EDGEC_WEB / "products/dcu/src/generated/registry.json").read_text(encoding="utf-8"))
+
+    for registry, product in ((iems, "iems"), (dcu, "dcu")):
+        assert registry["productId"] == product
+        assert registry["digests"]["registry"].startswith("sha256:"), "缺少 Registry 摘要,设备无法校验完整性"
+        assert registry["digests"]["releaseScope"].startswith("sha256:")
+        for page in registry["pages"]:
+            for permission in page["permissions"]["allOf"]:
+                assert "*" not in permission, f"运行期 Registry 出现通配符权限: {permission}"
+
+    iems_has_upgrade = any(op["feature"] == "firmwareUpgrade" for op in iems["api"])
+    dcu_has_upgrade = any(op["feature"] == "firmwareUpgrade" for op in dcu["api"])
+    assert not iems_has_upgrade, "iEMS 关闭了升级,Registry 里不得有升级接口"
+    assert dcu_has_upgrade, "DCU 启用了升级,Registry 里应有升级接口"
+
+    _record(
+        "WUI_00_00_01_000012",
+        iemsDigest=iems["digests"]["registry"][:23],
+        dcuDigest=dcu["digests"]["registry"][:23],
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000013", clause="free: WebUI 平台设计 v1.6 §6.4 风险分类", tags=["事务", "风险"])
+def test_r1_section_applies_without_confirm_window(iems: Client) -> None:
+    """R1(服务中断)不应弹确认窗口:apply 后直接 CONFIRMED;R2 才需要倒计时。"""
+    assert iems.login("engineer", "Engineer-Pass-2026").status == 200
+    created = iems.request(
+        "POST",
+        "/api/v1/config/transactions",
+        {"sectionId": "system.time", "values": {"ntpEnabled": True, "servers": ["ntp.aliyun.com"]}},
+    )
+    assert created.status == 201, f"合法 R1 草稿应创建成功,实际 {created.status}/{created.body}"
+    applied = iems.request("POST", f"/api/v1/config/transactions/{created.body['transactionId']}/apply", {})
+    assert applied.status == 200
+    assert applied.body["state"] == "CONFIRMED", f"R1 不应进入 PENDING_CONFIRM,实际 {applied.body['state']}"
+    assert applied.body.get("deadline") in (None, ""), "R1 不应有确认 deadline"
+    _record("WUI_00_00_01_000013", state=applied.body["state"], verdict="product_ok")
