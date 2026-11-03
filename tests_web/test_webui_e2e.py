@@ -301,3 +301,179 @@ def test_r1_section_applies_without_confirm_window(iems: Client) -> None:
     assert applied.body["state"] == "CONFIRMED", f"R1 不应进入 PENDING_CONFIRM,实际 {applied.body['state']}"
     assert applied.body.get("deadline") in (None, ""), "R1 不应有确认 deadline"
     _record("WUI_00_00_01_000013", state=applied.body["state"], verdict="product_ok")
+
+
+# ---------------------------------------------------------------- §5.5 账号与会话
+@case(id="WUI_00_00_01_000014", clause="free: WebUI 平台设计 v1.6 §5.6 会话管理", tags=["会话", "安全"])
+def test_session_revocation_kills_the_other_session(iems: Client) -> None:
+    """管理员撤销某条会话后,那条会话的下一次请求必须 401;无权限账号不得列会话。
+
+    判的是"撤销真的生效",不是"接口返回 204"——所以撤销后必须再打一次被撤销的那条会话。
+    """
+    admin = Client(iems.base)
+    assert admin.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    victim = Client(iems.base)
+    assert victim.login("engineer", "Engineer-Pass-2026").status == 200
+    assert victim.request("GET", "/api/v1/auth/me").status == 200
+
+    listed = admin.request("GET", "/api/v1/sessions")
+    assert listed.status == 200, f"管理员应能列会话,实际 {listed.status}"
+    engineer_sessions = [s for s in listed.body["items"] if s["username"] == "engineer"]
+    assert engineer_sessions, "会话列表里看不到 engineer 的会话"
+    target = engineer_sessions[0]["sid"]
+
+    revoked = admin.request("DELETE", f"/api/v1/sessions/{target}")
+    assert revoked.status == 204, f"撤销会话应 204,实际 {revoked.status}/{revoked.body}"
+
+    after = victim.request("GET", "/api/v1/auth/me")
+    assert after.status == 401, f"被撤销的会话应立刻失效,实际 {after.status}"
+
+    # 无 user.session:admin 的账号不得列会话(否则等于给了"谁在线"的情报面)
+    viewer = Client(iems.base)
+    assert viewer.login("viewer", "Viewer-Pass-2026").status == 200
+    denied = viewer.request("GET", "/api/v1/sessions")
+    assert denied.status == 403, f"viewer 列会话应 403,实际 {denied.status}"
+    assert denied.code == "permission_denied"
+
+    _record(
+        "WUI_00_00_01_000014",
+        revokedSid=target,
+        afterStatus=after.status,
+        viewerStatus=denied.status,
+        verdict="product_ok",
+    )
+
+
+@case(id="WUI_00_00_01_000015", clause="free: WebUI 平台设计 v1.6 §5.5 角色管理", tags=["角色", "负向"])
+def test_role_crud_guards_builtin_and_in_use(iems: Client) -> None:
+    """自定义角色可改;内置角色不可改;仍被账号持有的角色不可删。"""
+    admin = Client(iems.base)
+    assert admin.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    created = admin.request(
+        "POST",
+        "/api/v1/roles",
+        {"id": "wui-crud", "name": "WUI 用例角色", "permissions": ["core.alarm:read"]},
+    )
+    assert created.status == 201, f"建角色应 201,实际 {created.status}/{created.body}"
+
+    updated = admin.request(
+        "PATCH",
+        "/api/v1/roles/wui-crud",
+        {"name": "WUI 用例角色(改)", "permissions": ["core.alarm:read", "core.telemetry:read"]},
+    )
+    assert updated.status == 200, f"改自定义角色应 200,实际 {updated.status}/{updated.body}"
+    assert updated.body["permissions"] == ["core.alarm:read", "core.telemetry:read"], (
+        f"权限集合未按请求更新: {updated.body['permissions']}"
+    )
+
+    builtin = admin.request("PATCH", "/api/v1/roles/admin", {"name": "改名试试"})
+    assert builtin.status == 403, f"改内置角色应 403,实际 {builtin.status}"
+    assert builtin.code == "builtin_role_immutable", f"错误码应为 builtin_role_immutable,实际 {builtin.code}"
+
+    # 有账号持有它时删除必须被拒:否则这些账号会静默失去全部权限
+    holder = admin.request("POST", "/api/v1/users", {"username": "wui_role_holder", "roleIds": ["wui-crud"]})
+    assert holder.status == 201, f"建持有账号应 201,实际 {holder.status}/{holder.body}"
+    in_use = admin.request("DELETE", "/api/v1/roles/wui-crud")
+    assert in_use.status == 409, f"删除仍被持有的角色应 409,实际 {in_use.status}"
+    assert in_use.code == "role_in_use", f"错误码应为 role_in_use,实际 {in_use.code}"
+
+    _record(
+        "WUI_00_00_01_000015",
+        updatedPermissions=updated.body["permissions"],
+        builtinCode=builtin.code,
+        inUseCode=in_use.code,
+        verdict="product_ok",
+    )
+
+
+@case(
+    id="WUI_00_00_01_000016",
+    clause="free: WebUI 平台设计 v1.6 §5.6 登录保护",
+    tags=["认证", "负向"],
+)
+def test_login_lockout_blocks_even_correct_password(iems: Client) -> None:
+    """连续失败到阈值后锁定;锁定期间即使口令正确也必须拒绝(否则等于给了校验口)。
+
+    自己建一个一次性账号再打:不依赖种子账号,也不怕同一次会话里重跑(锁定是按
+    用户名+IP 记的,拿固定账号会让第二次运行直接撞上锁)。
+    """
+    admin = Client(iems.base)
+    assert admin.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+    account = "wui_lock_case"
+    password = "WuiLock-Pass-2026"
+    created = admin.request(
+        "POST", "/api/v1/users", {"username": account, "password": password, "roleIds": ["viewer"]}
+    )
+    assert created.status == 201, f"建一次性账号应 201,实际 {created.status}/{created.body}"
+
+    client = Client(iems.base)
+    last_failure = None
+    for index in range(5):
+        response = client.request(
+            "POST", "/api/v1/auth/login", {"username": account, "password": f"wrong-{index}"}
+        )
+        assert response.status == 401, f"第 {index + 1} 次错口令应 401,实际 {response.status}"
+        last_failure = response
+
+    locked = client.request("POST", "/api/v1/auth/login", {"username": account, "password": password})
+    assert locked.status == 429, f"锁定期间应 429,实际 {locked.status}"
+    assert locked.code == "too_many_attempts", f"错误码应为 too_many_attempts,实际 {locked.code}"
+    retry_after = locked.body.get("details", {}).get("retryAfterSeconds")
+    assert isinstance(retry_after, int) and retry_after > 0, f"应给出可执行的解锁时间,实际 {retry_after}"
+
+    _record(
+        "WUI_00_00_01_000016",
+        attemptsBeforeLock=5,
+        lastFailureStatus=last_failure.status if last_failure else None,
+        lockedStatus=locked.status,
+        retryAfterSeconds=retry_after,
+        verdict="product_ok",
+    )
+
+
+@case(
+    id="WUI_00_00_01_000017",
+    clause="free: WebUI 平台设计 v1.6 §5.5 授权即时生效",
+    tags=["角色", "会话"],
+)
+def test_permission_change_applies_to_existing_session(iems: Client) -> None:
+    """改角色的权限后,已经登录的会话下一次请求就按新权限判定(不做会话缓存)。"""
+    admin = Client(iems.base)
+    assert admin.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    assert admin.request(
+        "POST",
+        "/api/v1/roles",
+        {"id": "wui-live", "name": "WUI 即时生效", "permissions": ["core.alarm:read"]},
+    ).status == 201
+    created = admin.request("POST", "/api/v1/users", {"username": "wui_live", "roleIds": ["wui-live"]})
+    assert created.status == 201, f"建账号应 201,实际 {created.status}/{created.body}"
+    initial = created.body["initialPassword"]
+
+    member = Client(iems.base)
+    login = member.login("wui_live", initial)
+    assert login.status == 200, f"新账号应能登录,实际 {login.status}/{login.body}"
+    assert member.request("GET", "/api/v1/alarms").status == 200, "改权限前应能看告警"
+
+    # 把 core.alarm:read 换成 core.telemetry:read
+    changed = admin.request(
+        "PATCH", "/api/v1/roles/wui-live", {"permissions": ["core.telemetry:read"]}
+    )
+    assert changed.status == 200, f"改权限应 200,实际 {changed.status}/{changed.body}"
+
+    after_alarms = member.request("GET", "/api/v1/alarms")
+    after_telemetry = member.request("GET", "/api/v1/telemetry/current")
+    assert after_alarms.status == 403, (
+        f"权限被移除后同一会话应立刻 403,实际 {after_alarms.status}(说明会话里缓存了旧权限)"
+    )
+    assert after_telemetry.status == 200, f"新授予的权限应立刻可用,实际 {after_telemetry.status}"
+
+    _record(
+        "WUI_00_00_01_000017",
+        beforeAlarms=200,
+        afterAlarmsStatus=after_alarms.status,
+        afterTelemetryStatus=after_telemetry.status,
+        verdict="product_ok",
+    )
