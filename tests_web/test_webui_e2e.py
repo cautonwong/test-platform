@@ -477,3 +477,67 @@ def test_permission_change_applies_to_existing_session(iems: Client) -> None:
         afterTelemetryStatus=after_telemetry.status,
         verdict="product_ok",
     )
+
+
+@case(
+    id="WUI_00_00_01_000018",
+    clause="free: WebUI 平台设计 v1.6 §8.4 远程操作",
+    tags=["控制", "负向", "双人复核"],
+)
+def test_remote_control_requires_two_man(iems: Client) -> None:
+    """远程拉合闸:理由必填、发起人不能自批、另一人复核后才改设备状态。
+
+    这是**不可撤销的物理动作**,所以判据不能只看"接口返回 200"——
+    必须验证:自批被拒、复核后设备状态真的变了。
+    """
+    requester = Client(iems.base)
+    assert requester.login("engineer", "Engineer-Pass-2026").status == 200
+    approver = Client(iems.base)
+    assert approver.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    devices = requester.request("GET", "/api/v1/control/devices")
+    assert devices.status == 200, f"读可控设备应 200,实际 {devices.status}"
+    closed = [d for d in devices.body["items"] if d["state"] == "closed"]
+    assert closed, "台架应有至少一个处于合闸状态的开关"
+    target = closed[0]
+
+    # 没有理由的高危操作必须拒绝:事后无法追溯,也挡不住误触
+    no_reason = requester.request(
+        "POST", "/api/v1/control/commands", {"deviceId": target["id"], "action": "trip", "reason": ""}
+    )
+    assert no_reason.status == 422, f"缺理由应 422,实际 {no_reason.status}/{no_reason.body}"
+    assert no_reason.code == "reason_required", f"错误码应为 reason_required,实际 {no_reason.code}"
+
+    created = requester.request(
+        "POST",
+        "/api/v1/control/commands",
+        {"deviceId": target["id"], "action": "trip", "reason": "现场检修,需要断电"},
+    )
+    assert created.status == 201, f"发起命令应 201,实际 {created.status}/{created.body}"
+    command_id = created.body["id"]
+    assert created.body["state"] == "PENDING_APPROVAL", f"应待复核,实际 {created.body['state']}"
+
+    # 双人复核的核心:自己批自己等于没有复核
+    self_approve = requester.request("POST", f"/api/v1/control/commands/{command_id}/approve", {})
+    assert self_approve.status == 403, f"自批应 403,实际 {self_approve.status}"
+    assert self_approve.code == "self_approval_denied", (
+        f"错误码应为 self_approval_denied,实际 {self_approve.code}"
+    )
+
+    approved = approver.request("POST", f"/api/v1/control/commands/{command_id}/approve", {})
+    assert approved.status == 200, f"他人复核应 200,实际 {approved.status}/{approved.body}"
+    assert approved.body["state"] == "EXECUTED", f"复核后应 EXECUTED,实际 {approved.body['state']}"
+
+    after = approver.request("GET", "/api/v1/control/devices")
+    changed = [d for d in after.body["items"] if d["id"] == target["id"]][0]
+    assert changed["state"] == "open", f"复核后设备应分闸,实际 {changed['state']}"
+
+    _record(
+        "WUI_00_00_01_000018",
+        deviceId=target["id"],
+        noReasonStatus=no_reason.status,
+        selfApprovalCode=self_approve.code,
+        approvedState=approved.body["state"],
+        deviceStateAfter=changed["state"],
+        verdict="product_ok",
+    )
