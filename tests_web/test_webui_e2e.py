@@ -541,3 +541,78 @@ def test_remote_control_requires_two_man(iems: Client) -> None:
         deviceStateAfter=changed["state"],
         verdict="product_ok",
     )
+
+
+@case(
+    id="WUI_00_00_01_000019",
+    clause="free: WebUI 平台设计 v1.6 §8.3 告警归并",
+    tags=["告警", "归并"],
+)
+def test_alarm_dedup_and_silence(iems: Client) -> None:
+    """同源同码的告警要归并成一条（累加次数）；静默期间只累加、不再新增。
+
+    现场一次故障常常瞬间刷出几十条同码告警，一条条堆着等于没有告警。
+    """
+    requester = Client(iems.base)
+    assert requester.login("engineer", "Engineer-Pass-2026").status == 200
+    approver = Client(iems.base)
+    assert approver.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    def control(device_id: str, action: str) -> None:
+        created = requester.request(
+            "POST",
+            "/api/v1/control/commands",
+            {"deviceId": device_id, "action": action, "reason": "归并用例：制造同码告警"},
+        )
+        assert created.status == 201, f"发起 {action} 应 201,实际 {created.status}/{created.body}"
+        approved = approver.request(
+            "POST", f"/api/v1/control/commands/{created.body['id']}/approve", {}
+        )
+        assert approved.status == 200, f"复核应 200,实际 {approved.status}/{approved.body}"
+
+    def trip_alarms() -> list[dict]:
+        listed = approver.request("GET", "/api/v1/alarms")
+        assert listed.status == 200
+        return [a for a in listed.body["items"] if a["code"] == "CTL-REMOTE-TRIP"]
+
+    # 先把初始 open 的那个合上，让三个开关都处于合闸态
+    devices = requester.request("GET", "/api/v1/control/devices").body["items"]
+    for device in devices:
+        if device["state"] == "open":
+            control(device["id"], "close")
+    closed = [d for d in requester.request("GET", "/api/v1/control/devices").body["items"] if d["state"] == "closed"]
+    assert len(closed) >= 2, f"台架至少要有两个合闸开关,实际 {len(closed)}"
+
+    # 同一个会话里前面的用例可能已经产生过同码告警(000018 也拉过闸),
+    # 所以断言"增量"而不是绝对值 —— 这本身也是归并该有的样子。
+    baseline = trip_alarms()
+    base_count = baseline[0]["count"] if baseline else 0
+
+    control(closed[0]["id"], "trip")
+    first = trip_alarms()
+    assert len(first) == 1, f"第一次拉闸应产生 1 条,实际 {len(first)}"
+    assert first[0]["count"] == base_count + 1, (
+        f"归并计数应为 {base_count + 1},实际 {first[0]['count']}"
+    )
+
+    # 静默这条,再拉第二个闸:同码应该只累加次数、不再新增
+    silenced = approver.request("POST", f"/api/v1/alarms/{first[0]['id']}/silence", {"durationMinutes": 30})
+    assert silenced.status == 200, f"静默应 200,实际 {silenced.status}/{silenced.body}"
+    assert silenced.body["state"] == "silenced"
+    assert silenced.body.get("silencedUntil"), "静默必须带截止时间"
+
+    control(closed[1]["id"], "trip")
+    merged = trip_alarms()
+    assert len(merged) == 1, f"同码告警应归并为 1 条,实际 {len(merged)} 条"
+    assert merged[0]["count"] == base_count + 2, (
+        f"归并后计数应为 {base_count + 2},实际 {merged[0]['count']}"
+    )
+    assert merged[0]["state"] == "silenced", "静默状态应保持,不能被新事件重置"
+
+    _record(
+        "WUI_00_00_01_000019",
+        mergedCount=merged[0]["count"],
+        state=merged[0]["state"],
+        silencedUntil=merged[0]["silencedUntil"],
+        verdict="product_ok",
+    )
