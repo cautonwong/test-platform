@@ -746,3 +746,80 @@ def test_alarm_clear_archives_instead_of_dropping(iems: Client) -> None:
         archiveTotal=archive_total(),
         verdict="product_ok",
     )
+
+
+@case(
+    id="WUI_00_00_01_000022",
+    clause="free: WebUI 平台设计 v1.6 §5.7 审计",
+    tags=["审计", "安全"],
+)
+def test_audit_log_records_high_risk_actions(iems: Client) -> None:
+    """高危动作必须留痕:谁、什么时候、从哪来、请求 ID;且只有授权账号能读。
+
+    之前服务端一直在写 auditLog,却没有任何接口能读 —— 事后追责只能翻进程日志。
+    """
+    viewer = Client(iems.base)
+    assert viewer.login("viewer", "Viewer-Pass-2026").status == 200
+    denied = viewer.request("GET", "/api/v1/audit/events")
+    assert denied.status == 403, f"viewer 读审计应 403,实际 {denied.status}"
+    assert denied.code == "permission_denied"
+
+    requester = Client(iems.base)
+    assert requester.login("engineer", "Engineer-Pass-2026").status == 200
+    approver = Client(iems.base)
+    assert approver.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    # 制造一次双人复核的远程控制:发起人是 engineer,执行人是 opsadmin
+    devices = requester.request("GET", "/api/v1/control/devices").body["items"]
+    closed = [d for d in devices if d["state"] == "closed"]
+    if not closed:
+        open_one = [d for d in devices if d["state"] == "open"][0]
+        created = requester.request(
+            "POST",
+            "/api/v1/control/commands",
+            {"deviceId": open_one["id"], "action": "close", "reason": "审计用例：先合上一个开关"},
+        )
+        assert created.status == 201
+        assert approver.request(
+            "POST", f"/api/v1/control/commands/{created.body['id']}/approve", {}
+        ).status == 200
+        closed = [d for d in requester.request("GET", "/api/v1/control/devices").body["items"] if d["state"] == "closed"]
+    assert closed
+
+    created = requester.request(
+        "POST",
+        "/api/v1/control/commands",
+        {"deviceId": closed[0]["id"], "action": "trip", "reason": "审计用例：验证双人留痕"},
+    )
+    assert created.status == 201, f"发起控制应 201,实际 {created.status}/{created.body}"
+    command_id = created.body["id"]
+    assert approver.request("POST", f"/api/v1/control/commands/{command_id}/approve", {}).status == 200
+
+    events = approver.request("GET", "/api/v1/audit/events?limit=500")
+    assert events.status == 200, f"读审计应 200,实际 {events.status}"
+    items = events.body["items"]
+
+    requested = [e for e in items if e["action"] == "control.requested" and e["detail"].get("commandId") == command_id]
+    executed = [e for e in items if e["action"] == "control.executed" and e["detail"].get("commandId") == command_id]
+    assert len(requested) == 1, "发起应有且仅有一条审计记录"
+    assert len(executed) == 1, "复核执行应有且仅有一条审计记录"
+    assert requested[0]["actor"] == "engineer", f"发起人应为 engineer,实际 {requested[0]['actor']}"
+    assert executed[0]["actor"] == "opsadmin", f"复核人应为 opsadmin,实际 {executed[0]['actor']}"
+    for event in (requested[0], executed[0]):
+        assert event.get("requestId"), "审计记录必须带 requestId(能和日志关联)"
+        assert event.get("ip"), "审计记录必须带来源 IP"
+        assert event.get("ts"), "审计记录必须带时间"
+
+    # 按动作前缀过滤:结果里不能混进别的动作
+    filtered = approver.request("GET", "/api/v1/audit/events?action=control.").body["items"]
+    assert filtered, "按 control. 前缀应能筛出记录"
+    assert all(e["action"].startswith("control.") for e in filtered), "过滤结果混进了别的动作"
+
+    _record(
+        "WUI_00_00_01_000022",
+        requestedActor=requested[0]["actor"],
+        executedActor=executed[0]["actor"],
+        hasRequestId=bool(requested[0].get("requestId")),
+        viewerStatus=denied.status,
+        verdict="product_ok",
+    )
