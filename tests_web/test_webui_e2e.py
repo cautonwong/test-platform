@@ -691,3 +691,58 @@ def test_notification_channel_delivers_new_alarms(iems: Client) -> None:
         deliveredCode=after[0]["code"],
         verdict="product_ok",
     )
+
+
+@case(
+    id="WUI_00_00_01_000021",
+    clause="free: WebUI 平台设计 v1.6 §8.3 告警归档",
+    tags=["告警", "归档"],
+)
+def test_alarm_clear_archives_instead_of_dropping(iems: Client) -> None:
+    """清台只把告警挪进归档,不能销毁:事后还要能回答"刚才那批是什么"。"""
+    admin = Client(iems.base)
+    assert admin.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    def archive_total() -> int:
+        response = admin.request("GET", "/api/v1/alarms/archive")
+        assert response.status == 200, f"读归档应 200,实际 {response.status}"
+        return response.body["total"]
+
+    # 先清台,拿到干净的起点
+    assert admin.request("POST", "/api/v1/alarms/clear", {}).status == 200
+    before = archive_total()
+
+    created = admin.request(
+        "POST",
+        "/api/v1/config/transactions",
+        {"sectionId": "network.interfaces", "values": {"interfaceId": "eth0", "addresses": ["192.168.10.77/24"]}},
+    )
+    assert created.status == 201
+    tx = created.body["transactionId"]
+    assert admin.request("POST", f"/api/v1/config/transactions/{tx}/apply", {}).status == 200
+    assert admin.request("POST", f"/api/v1/config/transactions/{tx}/rollback", {}).status == 200
+
+    live = admin.request("GET", "/api/v1/alarms")
+    assert len(live.body["items"]) >= 1, "回滚应产生告警"
+
+    cleared = admin.request("POST", "/api/v1/alarms/clear", {})
+    assert cleared.status == 200, f"清台应 200,实际 {cleared.status}/{cleared.body}"
+    assert cleared.body["archived"] >= 1, f"清台应归档而不是丢弃,实际 archived={cleared.body.get('archived')}"
+
+    assert len(admin.request("GET", "/api/v1/alarms").body["items"]) == 0, "清台后活动列表应为空"
+    assert archive_total() == before + cleared.body["archived"], "归档条数应正好增加被清掉的条数"
+
+    archived = admin.request("GET", "/api/v1/alarms/archive").body["items"]
+    assert archived[0]["code"] == "CFG-ROLLED-BACK", f"归档里应能看到回滚告警,实际 {archived[0]['code']}"
+    assert archived[0].get("archivedAt"), "归档记录必须带归档时间"
+
+    filtered = admin.request("GET", "/api/v1/alarms/archive?code=CFG-ROLLED-BACK").body["items"]
+    assert filtered, "按告警码过滤应能查到"
+    assert all(item["code"] == "CFG-ROLLED-BACK" for item in filtered), "过滤结果混进了别的告警码"
+
+    _record(
+        "WUI_00_00_01_000021",
+        archived=cleared.body["archived"],
+        archiveTotal=archive_total(),
+        verdict="product_ok",
+    )
