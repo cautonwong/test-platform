@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
@@ -659,6 +660,7 @@ def test_notification_channel_delivers_new_alarms(iems: Client) -> None:
     assert channel["enabled"] is False, "台架初始渠道应为停用,避免污染其它用例"
     before = len(deliveries())
     rollback_once()
+    time.sleep(1.5)
     assert len(deliveries()) == before, "渠道停用时不应产生投递"
 
     # 启用 + 最低等级 major：这次应该投递
@@ -671,15 +673,25 @@ def test_notification_channel_delivers_new_alarms(iems: Client) -> None:
     admin.request("POST", "/api/v1/alarms/clear", {})
     before = len(deliveries())
     rollback_once()
+    # 投递是**异步**的（真的发 HTTP，还可能重试），不能立刻断言
+    found = None
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        candidates = [d for d in deliveries() if d["code"] == "CFG-ROLLED-BACK"]
+        if len(deliveries()) > before and candidates:
+            found = candidates[0]
+            break
+        time.sleep(0.2)
+    assert found is not None, "启用后应在 15s 内产生一条投递记录"
     after = deliveries()
-    assert len(after) == before + 1, f"启用后应新增 1 条投递,实际 {len(after) - before}"
-    assert after[0]["code"] == "CFG-ROLLED-BACK", f"投递的告警码不对: {after[0]['code']}"
+    assert len(after) >= before + 1, f"启用后应新增投递,实际 {len(after) - before}"
 
     # 把门槛提到 critical：major 的告警就不该再投递
     admin.request("PATCH", f"/api/v1/notifications/channels/{channel['id']}", {"minLevel": "critical"})
     admin.request("POST", "/api/v1/alarms/clear", {})
     before = len(deliveries())
     rollback_once()
+    time.sleep(1.5)
     assert len(deliveries()) == before, "低于最低等级的告警不应投递"
 
     # 收尾：恢复停用，避免影响后续用例
@@ -688,7 +700,7 @@ def test_notification_channel_delivers_new_alarms(iems: Client) -> None:
     _record(
         "WUI_00_00_01_000020",
         channelId=channel["id"],
-        deliveredCode=after[0]["code"],
+        deliveredCode=found["code"],
         verdict="product_ok",
     )
 
@@ -823,3 +835,106 @@ def test_audit_log_records_high_risk_actions(iems: Client) -> None:
         viewerStatus=denied.status,
         verdict="product_ok",
     )
+
+
+@case(
+    id="WUI_00_00_01_000023",
+    clause="free: WebUI 平台设计 v1.6 §8.3 通知投递",
+    tags=["告警", "通知", "负向"],
+)
+def test_webhook_really_sends_and_retries_on_failure(iems: Client) -> None:
+    """Webhook 必须真的发 HTTP:成功有 200,失败要重试并留下原因(不能假装成功)。
+
+    用本地临时 HTTP 服务当接收端;失败路径指向一个没人监听的端口。
+    """
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+
+    received = []
+
+    class Echo(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            length = int(self.headers.get('Content-Length', 0))
+            received.append(self.rfile.read(length).decode('utf-8', 'replace'))
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+
+        def log_message(self, *args):  # 不打访问日志,免得污染 pytest 输出
+            pass
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Echo)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = server.server_address[1]
+
+    client = Client(iems.base)
+    assert client.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    def deliveries():
+        return client.request("GET", "/api/v1/notifications/deliveries").body["items"]
+
+    def rollback_once():
+        created = client.request(
+            "POST",
+            "/api/v1/config/transactions",
+            {"sectionId": "network.interfaces", "values": {"interfaceId": "eth0", "addresses": ["192.168.10.55/24"]}},
+        )
+        assert created.status == 201
+        tx = created.body["transactionId"]
+        client.request("POST", f"/api/v1/config/transactions/{tx}/apply", {})
+        client.request("POST", f"/api/v1/config/transactions/{tx}/rollback", {})
+
+    def wait_for(predicate, timeout=15):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            found = [d for d in deliveries() if predicate(d)]
+            if found:
+                return found[0]
+            time.sleep(0.2)
+        return None
+
+    try:
+        channel = client.request("GET", "/api/v1/notifications/channels").body["items"][0]
+        original_url = channel["url"]
+
+        # ---- 成功路径：真的发到接收端 ----
+        client.request("PATCH", f"/api/v1/notifications/channels/{channel['id']}", {
+            "url": f"http://127.0.0.1:{port}/hook", "enabled": True, "minLevel": "info",
+        })
+        client.request("POST", "/api/v1/alarms/clear", {})
+        rollback_once()
+        ok = wait_for(lambda d: d["status"] == "delivered" and d.get("httpStatus") == 200)
+        assert ok is not None, "应产生一条真正投递成功的记录（带 HTTP 200）"
+        assert ok["attempts"] == 1, f"一次成功不该重试,实际 {ok['attempts']} 次"
+        assert received, "接收端必须真的收到过 POST"
+        assert "CFG-ROLLED-BACK" in received[-1], f"Webhook 正文里应带告警码: {received[-1][:200]}"
+
+        # ---- 失败路径：没人监听 → 重试到上限并留下原因 ----
+        client.request("PATCH", f"/api/v1/notifications/channels/{channel['id']}", {
+            "url": "http://127.0.0.1:1/hook",
+        })
+        client.request("POST", "/api/v1/alarms/clear", {})
+        rollback_once()
+        failed = wait_for(
+            lambda d: d["status"] == "failed" and d.get("attempts") == 3 and bool(d.get("error")),
+            timeout=20,
+        )
+        assert failed is not None, "失败应重试 3 次并留下错误原因，不能假装 delivered"
+
+        _record(
+            "WUI_00_00_01_000023",
+            successAttempts=ok["attempts"],
+            successHttpStatus=ok["httpStatus"],
+            failedAttempts=failed["attempts"],
+            failedError=str(failed["error"])[:80],
+            verdict="product_ok",
+        )
+    finally:
+        # 还原台架状态并关掉接收端，避免污染其它用例
+        client.request("PATCH", "/api/v1/notifications/channels/ch_1", {
+            "url": "http://127.0.0.1:9099/hooks/edgeos", "enabled": False, "minLevel": "major",
+        })
+        server.shutdown()
+        server.server_close()
