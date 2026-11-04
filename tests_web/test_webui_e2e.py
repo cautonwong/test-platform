@@ -616,3 +616,78 @@ def test_alarm_dedup_and_silence(iems: Client) -> None:
         silencedUntil=merged[0]["silencedUntil"],
         verdict="product_ok",
     )
+
+
+@case(
+    id="WUI_00_00_01_000020",
+    clause="free: WebUI 平台设计 v1.6 §8.3 通知",
+    tags=["告警", "通知"],
+)
+def test_notification_channel_delivers_new_alarms(iems: Client) -> None:
+    """通知渠道：启用的才投递、按最低等级过滤、停用后不再投递。"""
+    admin = Client(iems.base)
+    assert admin.login("opsadmin", "OpsAdmin-Pass-2026").status == 200
+
+    channels = admin.request("GET", "/api/v1/notifications/channels")
+    assert channels.status == 200, f"读渠道应 200,实际 {channels.status}"
+    channel = channels.body["items"][0]
+
+    def deliveries() -> list[dict]:
+        listed = admin.request("GET", "/api/v1/notifications/deliveries")
+        assert listed.status == 200
+        return listed.body["items"]
+
+    def rollback_once() -> None:
+        """制造一条 CFG-ROLLED-BACK（major）告警。"""
+        created = admin.request(
+            "POST",
+            "/api/v1/config/transactions",
+            {"sectionId": "network.interfaces", "values": {"interfaceId": "eth0", "addresses": ["192.168.10.88/24"]}},
+        )
+        assert created.status == 201, f"建事务应 201,实际 {created.status}/{created.body}"
+        applied = admin.request("POST", f"/api/v1/config/transactions/{created.body['transactionId']}/apply", {})
+        assert applied.status == 200
+        rolled = admin.request("POST", f"/api/v1/config/transactions/{created.body['transactionId']}/rollback", {})
+        assert rolled.status == 200
+
+    # 先清台：告警会归并，不清掉旧告警的话这一轮的"新告警"会并进旧的那条，
+    # 而通知只在**新产生**的告警上投递（归并进来的不重复推送），断言就无从谈起。
+    cleared = admin.request("POST", "/api/v1/alarms/clear", {})
+    assert cleared.status == 200, f"清空告警应 200,实际 {cleared.status}/{cleared.body}"
+
+    # 停用状态下：告警不投递
+    assert channel["enabled"] is False, "台架初始渠道应为停用,避免污染其它用例"
+    before = len(deliveries())
+    rollback_once()
+    assert len(deliveries()) == before, "渠道停用时不应产生投递"
+
+    # 启用 + 最低等级 major：这次应该投递
+    enabled = admin.request(
+        "PATCH", f"/api/v1/notifications/channels/{channel['id']}", {"enabled": True, "minLevel": "major"}
+    )
+    assert enabled.status == 200, f"启用渠道应 200,实际 {enabled.status}/{enabled.body}"
+    assert enabled.body["enabled"] is True
+
+    admin.request("POST", "/api/v1/alarms/clear", {})
+    before = len(deliveries())
+    rollback_once()
+    after = deliveries()
+    assert len(after) == before + 1, f"启用后应新增 1 条投递,实际 {len(after) - before}"
+    assert after[0]["code"] == "CFG-ROLLED-BACK", f"投递的告警码不对: {after[0]['code']}"
+
+    # 把门槛提到 critical：major 的告警就不该再投递
+    admin.request("PATCH", f"/api/v1/notifications/channels/{channel['id']}", {"minLevel": "critical"})
+    admin.request("POST", "/api/v1/alarms/clear", {})
+    before = len(deliveries())
+    rollback_once()
+    assert len(deliveries()) == before, "低于最低等级的告警不应投递"
+
+    # 收尾：恢复停用，避免影响后续用例
+    admin.request("PATCH", f"/api/v1/notifications/channels/{channel['id']}", {"enabled": False})
+
+    _record(
+        "WUI_00_00_01_000020",
+        channelId=channel["id"],
+        deliveredCode=after[0]["code"],
+        verdict="product_ok",
+    )
