@@ -45,7 +45,11 @@ __all__ = [
     "action_response",
     "build_frame",
     "get_request",
+    "get_request_list",
     "get_response",
+    "get_response_list",
+    "parse_get_response_list",
+    "GetListResult",
     "parse_action_response",
     "parse_frame",
     "response_length",
@@ -283,16 +287,48 @@ def get_response(piid: int, oad: int, data: bytes) -> bytes:
 # ---------------------------------------------------------------------------
 
 
+# 定长类型：标签后面直接跟数据，**没有长度字节**（SIZE 是编译期确定的）。
+# float32/float64 属于这一类（标准 6.3.2：octet-string(SIZE(4/8))），
+# 早先把它们当变长处理，会多吃一个字节 —— 解出来的浮点值整体错位。
+_AXDR_FIXED = {
+    5: 4, 6: 4, 15: 1, 16: 2, 17: 1, 18: 2, 20: 8, 21: 8, 22: 1,
+    23: 4, 24: 8, 25: 10, 26: 5, 27: 3, 28: 7,
+}
+
+
+def _one_axdr_len(data: bytes) -> int:
+    """一个 A-XDR **标量**元素占几字节（含类型标签），用于给列表响应定界。
+
+    列表响应里每个 A-ResultNormal 的 Data 是变长的，只有先算出这一项的长度，
+    才知道下一项的 OAD 从哪开始。算错一格的现象是"后面的值整体错位"，
+    而每一帧的 HCS/FCS 都还是对的 —— 所以这里对不认识的类型**直接报错**，
+    不猜一个长度。
+    """
+    if not data:
+        raise FrameError("A-XDR 数据为空")
+    tag = data[0]
+    if tag == 0x00:  # NULL
+        return 1
+    if tag == 0x03:  # bool
+        return 2
+    if tag in _AXDR_FIXED:
+        return 1 + _AXDR_FIXED[tag]
+    if tag in (0x09, 0x0A, 0x0C):  # 变长串：一个长度字节
+        if len(data) < 2:
+            raise FrameError(f"A-XDR 类型 0x{tag:02X} 缺长度字节")
+        return 2 + data[1]
+    if tag in (0x01, 0x02):  # array / structure：需要递归定界，今天不假装支持
+        raise FrameError(
+            f"列表响应里遇到 array/structure(0x{tag:02X})：暂不解析，"
+            "请改用逐个 GET-Request-Normal"
+        )
+    raise FrameError(f"不认识的 A-XDR 类型 0x{tag:02X}")
+
+
 def _iter_axdr(data: bytes) -> Iterator[tuple[int, bytes]]:
     """按 A-XDR 类型标签切分（只处理标量与定长串，够读响应里的值）。"""
     i = 0
-    # 定长类型：标签后面直接跟数据，**没有长度字节**（SIZE 是编译期确定的）。
-    # float32/float64 属于这一类（标准 6.3.2：octet-string(SIZE(4/8))），
-    # 早先把它们当变长处理，会多吃一个字节 —— 解出来的浮点值整体错位。
-    fixed = {
-        5: 4, 6: 4, 15: 1, 16: 2, 17: 1, 18: 2, 20: 8, 21: 8, 22: 1,
-        23: 4, 24: 8, 25: 10, 26: 5, 27: 3, 28: 7,
-    }
+    fixed = _AXDR_FIXED
     while i < len(data):
         tag = data[i]
         i += 1
@@ -412,3 +448,111 @@ def parse_get_response(apdu: bytes) -> GetResult:
             + (f"（{DLT698_ERRORS.get(dar, '未定义')}）" if dar is not None else "")
         )
     return GetResult(piid=piid, oad=oad, data=apdu[8:-2])
+
+
+# ---------------------------------------------------------------------------
+# GET-Request/Response-NormalList（标准 6.3.8.1.2 表66 / 6.3.8.2.2 表73）
+#
+# 术语要分清：标准里 [3]/[4] 的 GetRequestRecord 是**读记录型对象属性**
+# （冻结量、事件记录，带选择条件），不是"一次读多个 OAD"。一次读多个普通属性
+# 是 [2] GetRequestNormalList = SEQUENCE { PIID, SEQUENCE OF OAD }。
+#
+# 编码依据：标准 6.3.1 说 APDU 遵循 A-XDR 编码规则（DL/T 790.6-2010，
+# 本仓库没有该标准的正文）；本文件已有的 array/structure 实现就是
+# 「1 字节元素个数」，SEQUENCE OF OAD 沿用同一个宽度。
+# ⚠️ 附录 H 只给了 [1] Normal 的报文向量，**没有 [2] 的向量**。
+#    因此 count 的宽度是"按项目既有 A-XDR 约定"推的，拿到现场 [2] 报文后要核一次。
+# ---------------------------------------------------------------------------
+
+CHOICE_GET_NORMAL = 0x01
+CHOICE_GET_NORMAL_LIST = 0x02
+GET_RESULT_DATA = 0x01
+_APDU_TAIL_LEN = 2  # FollowReport + 时间标签
+
+
+def get_request_list(piid: int, oads: list[int] | tuple[int, ...]) -> bytes:
+    """GET-Request-NormalList：`05 | 02 | PIID | n | OAD(4)×n | 时间标签`。
+
+    n 限制 1…255（1 字节个数）。0 个 OAD 没有意义，直接拒绝而不是发一个空请求
+    —— 空请求会被从站当成坏帧，主站只能等超时。
+    """
+    if not 1 <= len(oads) <= 255:
+        raise ValueError(f"OAD 个数必须在 1…255 之间，拿到 {len(oads)}")
+    return (
+        bytes([SVC_GET_REQ, CHOICE_GET_NORMAL_LIST, piid & 0xFF, len(oads)])
+        + b"".join(int(oad).to_bytes(4, "big") for oad in oads)
+        + bytes([APDU_END["time_tag"]])
+    )
+
+
+def get_response_list(piid: int, results: list[tuple[int, bytes]]) -> bytes:
+    """造一条 [2] 响应，给协议层单测与主站模拟器用。
+
+    `results` 是 `(OAD, Data)`；Data 必须**含 A-XDR 类型标签**（如 `17 43 67 B3 33`）。
+    `85 | 02 | PIID-ACD | n | (OAD(4) | 01 | Data)×n | 00 | 00`
+    """
+    if not 1 <= len(results) <= 255:
+        raise ValueError(f"结果个数必须在 1…255 之间，拿到 {len(results)}")
+    body = bytearray([SVC_GET_RES, CHOICE_GET_NORMAL_LIST, piid & 0xFF, len(results)])
+    for oad, data in results:
+        body += int(oad).to_bytes(4, "big")
+        body.append(GET_RESULT_DATA)
+        body += data
+        # Data 必须是本解析器能定界的一个标量，否则这条响应解不开
+        _one_axdr_len(data)
+    body += bytes(_APDU_TAIL_LEN)
+    return bytes(body)
+
+
+@dataclass(frozen=True)
+class GetListResult:
+    piid: int
+    results: tuple[GetResult, ...]
+
+    def by_oad(self, oad: int) -> GetResult:
+        for item in self.results:
+            if item.oad == oad:
+                return item
+        raise KeyError(f"响应里没有 OAD {oad:#010x}：{[hex(r.oad) for r in self.results]}")
+
+
+def parse_get_response_list(apdu: bytes) -> GetListResult:
+    """解析 GET-Response-NormalList。
+
+    单项 `A-ResultNormal = SEQUENCE { OAD(4), Get-Result }`；Get-Result 是
+    CHOICE：`[0] DAR` 或 `[1] Data`。**DAR 必须如实报错**，不能把失败项当数据跳过，
+    否则主站会拿到比请求更少的读数却以为正常。
+    """
+    if len(apdu) < 6:
+        raise FrameError(f"GET-Response-List 太短：{len(apdu)} 字节")
+    if apdu[0] != SVC_GET_RES:
+        raise FrameError(f"不是 GET-Response：服务码 0x{apdu[0]:02X}")
+    if apdu[1] != CHOICE_GET_NORMAL_LIST:
+        raise FrameError(f"不是 GetResponseNormalList([2])，收到 [{apdu[1]}]")
+
+    piid = apdu[2]
+    count = apdu[3]
+    if count == 0:
+        raise FrameError("GET-Response-List 的结果个数是 0")
+    i = 4
+    items: list[GetResult] = []
+    for _ in range(count):
+        if i + 5 > len(apdu):
+            raise FrameError(f"第 {len(items) + 1} 个 A-ResultNormal 被截断")
+        oad = int.from_bytes(apdu[i:i + 4], "big")
+        flag = apdu[i + 4]
+        i += 5
+        if flag != GET_RESULT_DATA:
+            dar = apdu[i] if i < len(apdu) else None
+            raise FrameError(
+                f"OAD {oad:#010x} 读取失败：DAR={dar}"
+                + (f"（{DLT698_ERRORS.get(dar, '未定义')}）" if dar is not None else "")
+            )
+        n = _one_axdr_len(apdu[i:])
+        items.append(GetResult(piid=piid, oad=oad, data=apdu[i:i + n]))
+        i += n
+
+    tail = apdu[i:]
+    if len(tail) > _APDU_TAIL_LEN:
+        raise FrameError(f"解析完 {count} 项后还剩 {len(tail)} 字节：{tail.hex()}")
+    return GetListResult(piid=piid, results=tuple(items))
