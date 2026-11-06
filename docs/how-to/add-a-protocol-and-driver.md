@@ -11,6 +11,23 @@
 
 先看一个判断:如果"**一个读数键 = 一次请求/应答**",就走通用读取路径 `PointTableDriver`,driver 只需要写一个 `read_raw`(约 15 行)。只有需要时序、分支、或者要下发设定值时才写专用 driver。
 
+## 已有项目:两条命令,不用重新生成项目
+
+```bash
+testplatform new-driver my_meter --device-type my_meter --protocol vendor_ascii
+testplatform new-driver demo_meter --protocol demo_text --access tcp,serial
+testplatform new-protocol demo_codec
+testplatform new-simulator demo --access demo_sim
+```
+
+`new-driver` 写 `<名字>_driver.py`,往项目的 `conftest.py` 加 import,并把 entry point 写进 `pyproject.toml` —— 装成包以后平台的插件加载器也能发现它。entry point 只对 setuptools 后端生成;其它后端源码直跑靠 conftest,不写指向不存在模块的假 entry point。`vendor_ascii` 生成即可跑;其它规约生成 `read_raw` 骨架。**新规约**会带上 `register_protocol("<规约>", access={...})`;已在平台注册过的规约沿用既有接入方式,生成器不再重复声明,避免两组 access 打架。源码布局(`where = ["src"]`)的项目会把文件写进 `src`。
+
+`new-protocol` 写 `<名字>_protocol.py`,纯函数加自检;`python <文件>` 直接跑。
+
+`new-simulator` 写 `<名字>_simulator.py`,注册一个 `(access, "simulator")` 传输;`respond(request)` 按你的规约生成应答。access 缺省 `<名字>_sim`,避免覆盖内置的 `tcp` / `serial` 模拟器。
+
+这些命令都不改平台源码,也不重新生成项目。
+
 ---
 
 ## 第一步:protocol 模块
@@ -96,8 +113,8 @@ def _build(device_id, spec, model, transport, criteria) -> PointTableDriver:
 ## 第四步:接上三处(漏一处就跑不到)
 
 1. `protocol/__init__.py` 导出新模块。
-2. `src/testplatform/config/manifest.py` 的 `PROTOCOL_ACCESS` 加一行:这个规约允许哪些 `access`(串口规约不会直接跑在裸 TCP 上)。
-3. `src/testplatform/composition/root.py` 加一行 `from testplatform.drivers import <你的>_driver  # noqa: F401` —— 这一行触发 `@register_device` 注册。
+2. 在驱动模块里调用 `register_protocol("<规约>", access={"serial", ...})`:声明这个规约允许哪些 `access`(串口规约不会直接跑在裸 TCP 上)。同时用 `@register_device(...)` 注册驱动工厂。
+3. 平台仓库内的驱动在 `src/testplatform/composition/registrations.py` 加一行 import;用户项目由项目根 `conftest.py` 导入(任务加载前会执行),或装成包后由 entry point 发现。这一行触发 `@register_device` 与 `register_protocol`。
 
 然后清单里加型号 + 设备,见 [`add-a-device.md`](add-a-device.md) 档 3。
 

@@ -15,7 +15,7 @@
 
 ```text
 configs/devices.yaml
-  -> config/loader.py + config/manifest.py   解析并整份校验
+  -> config/loader.py + config/manifest/(parsing.py / validation.py)   解析并整份校验
   -> CompositionRoot.build()                 唯一组合根
      -> transport(access, mode)              字节管道 / 请求接口 / 总线
      -> driver(type, protocol)               把传输、点表、领域对象接起来
@@ -308,7 +308,7 @@ devices:
 
 依据:
 
-- `src/testplatform/config/manifest.py`
+- `src/testplatform/config/manifest/`
 - `src/testplatform/config/loader.py`
 - `src/testplatform/drivers/registry.py`
 - `src/testplatform/drivers/point_table_driver.py`
@@ -433,7 +433,7 @@ def build_meter(
 新协议至少检查四个位置:
 
 1. `protocol/__init__.py` 导出模块。
-2. `config/manifest.py` 的 `PROTOCOL_ACCESS` 声明该规约允许的 `access`。
+2. `config/manifest/constants.py` 的 `PROTOCOL_ACCESS` 声明该规约允许的 `access`。
 3. 驱动模块使用 `@register_device(type, protocol)`。
 4. `composition/registrations.py` 导入驱动模块;用户项目则在 `conftest.py` 导入。
 

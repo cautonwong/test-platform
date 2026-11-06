@@ -137,10 +137,10 @@ def parse_read_response(
     _check_transaction(transaction, expected_transaction, frame)
     if len(pdu) < 2:
         raise ValueError(f"应答 PDU 太短: {frame.hex()}")
-    if is_exception_response(pdu[0], function):
-        raise SlaveExceptionResponse(frame_unit, function, pdu[1])
     if frame_unit != unit:
         raise ValueError(f"应答的单元号是 {frame_unit},不是请求的 {unit}: {frame.hex()}")
+    if is_exception_response(pdu[0], function):
+        raise SlaveExceptionResponse(frame_unit, function, pdu[1])
     if pdu[0] != function:
         raise ValueError(f"应答的功能码是 {pdu[0]:#04x},不是请求的 {function:#04x}: {frame.hex()}")
     payload = pdu[2:]
@@ -198,12 +198,14 @@ def parse_write_response(
     """
     transaction, frame_unit, pdu = _split(frame)
     _check_transaction(transaction, expected_transaction, frame)
-    if len(pdu) >= 2 and is_exception_response(pdu[0], function):
+    if frame_unit != unit:
+        raise ValueError(f"应答的单元号是 {frame_unit},不是请求的 {unit}: {frame.hex()}")
+    if len(pdu) < 2:
+        raise ValueError(f"应答 PDU 太短: {frame.hex()}")
+    if is_exception_response(pdu[0], function):
         raise SlaveExceptionResponse(frame_unit, function, pdu[1])
     if len(pdu) != 5:
         raise ValueError(f"写单个寄存器应答的 PDU 必须是 5 字节,收到 {len(pdu)}: {frame.hex()}")
-    if frame_unit != unit:
-        raise ValueError(f"应答的单元号是 {frame_unit},不是请求的 {unit}: {frame.hex()}")
     if pdu[0] != function:
         raise ValueError(f"应答的功能码是 {pdu[0]:#04x},不是请求的 {function:#04x}: {frame.hex()}")
     echoed = int.from_bytes(pdu[1:3], "big")
@@ -291,12 +293,14 @@ def parse_write_multiple_response(
     """
     transaction, frame_unit, pdu = _split(frame)
     _check_transaction(transaction, expected_transaction, frame)
-    if len(pdu) >= 2 and is_exception_response(pdu[0], function):
+    if frame_unit != unit:
+        raise ValueError(f"应答的单元号是 {frame_unit},不是请求的 {unit}: {frame.hex()}")
+    if len(pdu) < 2:
+        raise ValueError(f"应答 PDU 太短: {frame.hex()}")
+    if is_exception_response(pdu[0], function):
         raise SlaveExceptionResponse(frame_unit, function, pdu[1])
     if len(pdu) != 5:
         raise ValueError(f"写多个寄存器应答的 PDU 必须是 5 字节,收到 {len(pdu)}: {frame.hex()}")
-    if frame_unit != unit:
-        raise ValueError(f"应答的单元号是 {frame_unit},不是请求的 {unit}: {frame.hex()}")
     if pdu[0] != function:
         raise ValueError(f"应答的功能码是 {pdu[0]:#04x},不是请求的 {function:#04x}: {frame.hex()}")
     echoed_address = int.from_bytes(pdu[1:3], "big")

@@ -4,6 +4,8 @@
 
 | 你要做的事 | 读这个 |
 |---|---|
+| 第一次写用例,从零到一份报告 | [`write-your-first-case.md`](write-your-first-case.md) |
+| 先把一个 issue 写成验收用例,再改产品(以 EdgeC 为例) | [`acceptance-first.md`](acceptance-first.md) |
 | 加一台设备、加一个型号、接一个新规约 | [`add-a-device.md`](add-a-device.md) |
 | 写一个协议模块和一个 driver | [`add-a-protocol-and-driver.md`](add-a-protocol-and-driver.md) |
 | 写一条跨设备的场景用例 | [`add-a-scenario.md`](add-a-scenario.md) |

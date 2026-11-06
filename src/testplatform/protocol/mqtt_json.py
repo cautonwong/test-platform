@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -106,6 +107,8 @@ def parse_downlink(payload: bytes) -> DownlinkCommand:
     # bool 是 int 的子类，必须单独排除：true 会被当成 1，静默把开关打开。
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise MqttJsonFormatError(f"v 不是数字：{value!r}")
+    if not math.isfinite(value):
+        raise MqttJsonFormatError(f"v 不是有限数(NaN/inf)：{value!r}")
 
     for key, item in obj.items():
         if key in ("p", "v"):

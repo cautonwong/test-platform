@@ -170,3 +170,9 @@ def test_rules_are_documented():
     """规则表是给 C 侧对照用的，不能空着或变成占位符。"""
     assert len(mqtt_json.DOWNLINK_RULES) >= 5
     assert all(len(rule) > 10 for rule in mqtt_json.DOWNLINK_RULES)
+
+
+@pytest.mark.parametrize("raw", [b'{"p":"power","v":NaN}', b'{"p":"power","v":Infinity}'])
+def test_non_finite_downlink_value_is_rejected(raw):
+    with pytest.raises(MqttJsonFormatError, match="有限数"):
+        mqtt_json.parse_downlink(raw)

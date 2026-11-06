@@ -118,11 +118,12 @@ def test_an_explicit_local_unsupported_marker_is_listed(tmp_path):
           task:
             steps:
               - run: pip install pytest
-                local: unsupported 装依赖会改动本机环境
+                env:
+                  LOCAL_UNSUPPORTED: 装依赖会改动本机环境
         """,
     )
 
-    assert result.skipped == [("task/pip install pytest", "unsupported 装依赖会改动本机环境")]
+    assert result.skipped == [("task/pip install pytest", "装依赖会改动本机环境")]
 
 
 # --------------------------------------------------------- 失败不许被掩盖 ----

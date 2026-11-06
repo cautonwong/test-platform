@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -104,4 +105,5 @@ def test_the_node_suite_passes():
     )
 
     assert completed.returncode == 0, completed.stdout[-3000:] + completed.stderr[-2000:]
-    assert "# fail 0" in completed.stdout
+    # Node 20 打 "# fail 0",Node 22+ 打 "ℹ fail 0";两种都要认,不能把工具版本当测试结论。
+    assert re.search(r"(?m)^\s*(?:# |ℹ )?fail 0\s*$", completed.stdout), completed.stdout[-2000:]

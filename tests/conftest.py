@@ -140,7 +140,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             # 造一个 NOTSET 出来,那会让整轮的收集直接失败("no tests ran")。
             metafunc.parametrize(
                 "case_id",
-                [pytest.param(None, marks=pytest.mark.skip(reason="这份清单里没有 setting_cases(设置类条款)"))],
+                [pytest.param(None, marks=pytest.mark.skip(reason="清单里没有 setting_cases(设置类条款)"))],
             )
 
 
@@ -186,7 +186,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
                 # 任务清单常常只列一类设备(某个产品的任务只关心电表),不能因为这个
                 # 让整轮收集直接失败(同 pytest_generate_tests 里 setting_cases 那条先例)。
                 item.add_marker(
-                    pytest.mark.skip(reason=f"这份清单里没有 {'/'.join(sorted(absent))} 设备")
+                    pytest.mark.skip(reason=f"清单里没有: {'/'.join(sorted(absent))} 设备")
                 )
                 continue
             raise pytest.UsageError(
@@ -198,7 +198,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
             if missing:
                 item.add_marker(
                     pytest.mark.skip(
-                        reason=f"{device_id}(型号 {model.name})未声明能力 {sorted(missing)},跳过"
+                        reason=f"未声明能力: {device_id}(型号 {model.name}) {sorted(missing)},跳过"
                     )
                 )
                 break

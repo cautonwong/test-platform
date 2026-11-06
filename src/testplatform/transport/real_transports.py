@@ -93,7 +93,7 @@ def default_can_interface() -> str:
 
     socketcan 是 Linux 内核专有:把它写死就会让 Windows 上接了 CAN 设备直接起不来。
     Windows 上接 CAN 设备最常见的是 PEAK 的 pcan;其余平台默认 slcan(USB 转 CAN 串口)。
-    可用值的白名单在 config/manifest.py 的 CAN_INTERFACES,装配前校验未知值。
+    可用值的白名单在 config/manifest/constants.py 的 CAN_INTERFACES,装配前校验未知值。
     """
     if sys.platform.startswith("linux"):
         return "socketcan"
@@ -448,7 +448,7 @@ def _host_and_port(hostname: str) -> tuple[str, int]:
     return hostname, 22
 
 
-# 清单不可达:没有规约在 PROTOCOL_ACCESS 里放行 access: ssh(见 config/manifest.py 的
+# 清单不可达:没有规约在 PROTOCOL_ACCESS 里放行 access: ssh(见 config/manifest/constants.py 的
 # TRANSPORT_ONLY_ACCESS)。仍然有真实用途 —— gateway_transport.py 复用它做网关透传。
 class RealSshTransport:
     """给工控机、PLC 主机这类"可以跑命令的设备"用,
@@ -501,7 +501,7 @@ class RealSshTransport:
 
 
 # 已注册但清单不可达:access: ssh 会被 parse_manifest 拒绝(没有规约声明支持它),
-# 原因与放行办法见 config/manifest.py 的 TRANSPORT_ONLY_ACCESS。
+# 原因与放行办法见 config/manifest/constants.py 的 TRANSPORT_ONLY_ACCESS。
 @register_transport("ssh", "real")
 def _build_ssh(cfg: dict) -> SshTransport:
     return RealSshTransport(
@@ -516,7 +516,7 @@ def _build_ssh(cfg: dict) -> SshTransport:
 # ---------------------------------------------------------------- HTTP ----
 
 class RealHttpTransport:
-    # 清单不可达:没有规约在 PROTOCOL_ACCESS 里放行 access: http(见 config/manifest.py 的
+    # 清单不可达:没有规约在 PROTOCOL_ACCESS 里放行 access: http(见 config/manifest/constants.py 的
     # TRANSPORT_ONLY_ACCESS)。有意保留:要给 EMS / 网关这类自带 REST 接口的设备用时,
     # 先定规约再放行,不是删掉这个实现。
     def __init__(self, base_url: str) -> None:
@@ -530,7 +530,7 @@ class RealHttpTransport:
 
 
 # 已注册但清单不可达:access: http 会被 parse_manifest 拒绝(没有规约声明支持它),
-# 原因与放行办法见 config/manifest.py 的 TRANSPORT_ONLY_ACCESS。
+# 原因与放行办法见 config/manifest/constants.py 的 TRANSPORT_ONLY_ACCESS。
 @register_transport("http", "real")
 def _build_http(cfg: dict) -> HttpTransport:
     return RealHttpTransport(base_url=cfg["base_url"])
@@ -548,7 +548,7 @@ class MqttBrokerUnreachable(ConnectionError):
 
 
 class RealMqttTransport:
-    # 清单不可达:没有规约在 PROTOCOL_ACCESS 里放行 access: mqtt(见 config/manifest.py 的
+    # 清单不可达:没有规约在 PROTOCOL_ACCESS 里放行 access: mqtt(见 config/manifest/constants.py 的
     # TRANSPORT_ONLY_ACCESS)。有意保留:HEMS / 云侧走发布订阅上报时会用到。
 
     # paho on_connect 的 rc:0 = 成功,其余是 broker 拒绝 CONNECT 的理由(MQTT 3.1.1 CONNACK)。
@@ -648,7 +648,7 @@ class RealMqttTransport:
 
 
 # 已注册但清单不可达:access: mqtt 会被 parse_manifest 拒绝(没有规约声明支持它),
-# 原因与放行办法见 config/manifest.py 的 TRANSPORT_ONLY_ACCESS。
+# 原因与放行办法见 config/manifest/constants.py 的 TRANSPORT_ONLY_ACCESS。
 @register_transport("mqtt", "real")
 def _build_mqtt(cfg: dict) -> MqttTransport:
     return RealMqttTransport(

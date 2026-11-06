@@ -88,13 +88,15 @@ def _encode_bcd(value: float, length: int, byteorder: str) -> bytes:
 def _encode_float32(value: float, length: int, byteorder: str) -> bytes:
     if length != 4:
         raise ValueError(f"float32 必须是 4 字节,拿到 length={length}")
+    if not math.isfinite(value):
+        raise ValueError(f"float32 编码只能是有限数,拿到 {value}")
     try:
         return struct.pack(_FLOAT32_FORMAT[byteorder], value)
     except (OverflowError, struct.error) as exc:
         raise ValueError(f"float32 表示不了 {value}(约 ±3.4e38 之外): {exc}") from None
 
 
-# "支持哪些编码"只有这一份声明:config/manifest.py 的 POINT_ENCODINGS 由它派生。
+# "支持哪些编码"只有这一份声明:config/manifest/constants.py 的 POINT_ENCODINGS 由它派生。
 DECODERS = {"uint": _uint, "int": _int, "bcd": _bcd, "float32": _float32, "ascii": _ascii}
 # 写方向只给数值编码:ascii 文本点什么字符算合法由设备定,没有一条能通用的规则。
 ENCODERS = {

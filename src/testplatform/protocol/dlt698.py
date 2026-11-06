@@ -34,10 +34,10 @@ Q/GDW《面向对象的用电信息数据交换协议》（报批稿）原文在
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterator
 
 __all__ = [
     "APDU_END",
+    "AxdrValue",
     "DLT698_ERRORS",
     "Frame",
     "FrameError",
@@ -295,69 +295,85 @@ _AXDR_FIXED = {
     23: 4, 24: 8, 25: 10, 26: 5, 27: 3, 28: 7,
 }
 
+# A-XDR 嵌套深度上限。标准里的数组/结构远达不到这个层数;设上限是为了让
+# 恶意或损坏的帧在解析边界报 FrameError,而不是先把 Python 递归栈打穿。
+MAX_AXDR_DEPTH = 16
 
-def _one_axdr_len(data: bytes) -> int:
-    """一个 A-XDR **标量**元素占几字节（含类型标签），用于给列表响应定界。
 
-    列表响应里每个 A-ResultNormal 的 Data 是变长的，只有先算出这一项的长度，
-    才知道下一项的 OAD 从哪开始。算错一格的现象是"后面的值整体错位"，
-    而每一帧的 HCS/FCS 都还是对的 —— 所以这里对不认识的类型**直接报错**，
-    不猜一个长度。
+@dataclass(frozen=True)
+class AxdrValue:
+    """一个 A-XDR 值。
+
+    标量放在 `payload`（不含类型标签与长度字节）；array/structure 把元素放进
+    `children`、`payload` 为空。数组必须保留成一层，不能拍平成元素列表 ——
+    "三相电压"拍平后取第一个，就是把 C 相静默成 A 相。
+    """
+
+    tag: int
+    payload: bytes = b""
+    children: tuple["AxdrValue", ...] = ()
+
+    @property
+    def is_container(self) -> bool:
+        return self.tag in (0x01, 0x02)
+
+
+def _decode_one(data: bytes, depth: int = 0) -> tuple[AxdrValue, int]:
+    """解出 `data` 开头的一个 A-XDR 值，返回 (值, 消耗字节数)。
+
+    长度先算准再切：声明的类型/长度超出缓冲就报错，不返回一个短值 ——
+    "少一字节的浮点"解出来仍像一个正常读数，这是最坏的一种假绿。
     """
     if not data:
         raise FrameError("A-XDR 数据为空")
     tag = data[0]
     if tag == 0x00:  # NULL
-        return 1
+        return AxdrValue(tag), 1
     if tag == 0x03:  # bool
-        return 2
+        if len(data) < 2:
+            raise FrameError("A-XDR bool 缺 1 字节")
+        return AxdrValue(tag, data[1:2]), 2
     if tag in _AXDR_FIXED:
-        return 1 + _AXDR_FIXED[tag]
+        width = 1 + _AXDR_FIXED[tag]
+        if len(data) < width:
+            raise FrameError(
+                f"A-XDR 类型 0x{tag:02X} 需要 {width} 字节，只有 {len(data)}: {data.hex()}"
+            )
+        return AxdrValue(tag, data[1:width]), width
     if tag in (0x09, 0x0A, 0x0C):  # 变长串：一个长度字节
         if len(data) < 2:
             raise FrameError(f"A-XDR 类型 0x{tag:02X} 缺长度字节")
-        return 2 + data[1]
-    if tag in (0x01, 0x02):  # array / structure：需要递归定界，今天不假装支持
-        raise FrameError(
-            f"列表响应里遇到 array/structure(0x{tag:02X})：暂不解析，"
-            "请改用逐个 GET-Request-Normal"
-        )
+        width = 2 + data[1]
+        if len(data) < width:
+            raise FrameError(
+                f"A-XDR 类型 0x{tag:02X} 声明 {data[1]} 字节，只有 {len(data) - 2}: {data.hex()}"
+            )
+        return AxdrValue(tag, data[2:width]), width
+    if tag in (0x01, 0x02):  # array / structure
+        if depth >= MAX_AXDR_DEPTH:
+            raise FrameError(f"A-XDR 嵌套超过 {MAX_AXDR_DEPTH} 层")
+        if len(data) < 2:
+            raise FrameError(f"A-XDR 类型 0x{tag:02X} 缺元素个数")
+        count = data[1]
+        offset = 2
+        children: list[AxdrValue] = []
+        for _ in range(count):
+            child, consumed = _decode_one(data[offset:], depth + 1)
+            children.append(child)
+            offset += consumed
+        return AxdrValue(tag, children=tuple(children)), offset
     raise FrameError(f"不认识的 A-XDR 类型 0x{tag:02X}")
 
 
-def _iter_axdr(data: bytes) -> Iterator[tuple[int, bytes]]:
-    """按 A-XDR 类型标签切分（只处理标量与定长串，够读响应里的值）。"""
-    i = 0
-    fixed = _AXDR_FIXED
-    while i < len(data):
-        tag = data[i]
-        i += 1
-        if tag in (0x00, 0x03):  # NULL / bool
-            yield tag, data[i:i + (1 if tag == 0x03 else 0)]
-            i += 1 if tag == 0x03 else 0
-        elif tag in fixed:
-            n = fixed[tag]
-            yield tag, data[i:i + n]
-            i += n
-        elif tag in (0x09, 0x0A, 0x0C):  # 变长串：带一个长度字节
-            if i >= len(data):
-                raise FrameError(f"类型 0x{tag:02X} 缺长度字节")
-            n = data[i]
-            i += 1
-            yield tag, data[i:i + n]
-            i += n
-        elif tag in (0x01, 0x02):  # array / structure
-            if i >= len(data):
-                raise FrameError(f"类型 0x{tag:02X} 缺元素个数")
-            count = data[i]
-            i += 1
-            for _ in range(count):
-                for item in _iter_axdr(data[i:]):
-                    yield item
-                    i += 1 + len(item[1])
-                    break
-        else:
-            raise FrameError(f"不认识的 A-XDR 类型 0x{tag:02X}")
+def _decode_values(data: bytes) -> tuple[AxdrValue, ...]:
+    """把一段 Data 解成连续 A-XDR 值；末尾多出来的半截会在这里报错。"""
+    values: list[AxdrValue] = []
+    offset = 0
+    while offset < len(data):
+        value, consumed = _decode_one(data[offset:])
+        values.append(value)
+        offset += consumed
+    return tuple(values)
 
 
 @dataclass(frozen=True)
@@ -411,10 +427,17 @@ def parse_action_response(apdu: bytes) -> ActionResult:
     dar = apdu[7]
     rest = apdu[8:]
 
+    # Data 标志(00=无 / 01=有) + FollowReport + 时间标签,至少 3 字节。
+    if len(rest) < 3:
+        raise FrameError(f"ACTION-Response 缺 Data 标志或尾部：{len(rest)} 字节")
     data = b""
-    if rest and rest[0] == 0x01:
-        # 去掉末尾 FollowReport + 时间标签
-        data = rest[1:-2] if len(rest) >= 3 else b""
+    if rest[0] == 0x01:
+        data = rest[1:-2]
+        if not data:
+            raise FrameError("ACTION-Response 的 Data 标志是 01，但数据段为空")
+        _decode_values(data)
+    elif rest[0] != 0x00:
+        raise FrameError(f"ACTION-Response 的 Data 标志不认识：0x{rest[0]:02X}")
     return ActionResult(piid=piid, oi=oi, method=method, mode=mode, dar=dar, data=data)
 
 
@@ -424,14 +447,26 @@ class GetResult:
     oad: int
     data: bytes
 
+    def values(self) -> tuple[AxdrValue, ...]:
+        """Data 里的 A-XDR 值（数组/结构保留层，不拍平）。"""
+        return _decode_values(self.data)
+
     def scalars(self) -> list[tuple[int, bytes]]:
-        return list(_iter_axdr(self.data))
+        """只要标量的调用方:遇到 array/structure 直接报错,不替它挑一个元素。"""
+        values = self.values()
+        containers = [value for value in values if value.is_container]
+        if containers:
+            raise FrameError(
+                f"Data 是 array/structure(0x{containers[0].tag:02X})："
+                "标量接口不能取其中一个元素"
+            )
+        return [(value.tag, value.payload) for value in values]
 
 
 def parse_get_response(apdu: bytes) -> GetResult:
     """解析 GET-Response-Normal。DAR 非 0 时标准里是 `[DAR]` 而不是数据，这里直接报错。"""
-    if len(apdu) < 9:
-        raise FrameError(f"GET-Response 太短：{len(apdu)} 字节")
+    if len(apdu) < 10:
+        raise FrameError(f"GET-Response 太短（缺 FollowReport/时间标签）：{len(apdu)} 字节")
     if apdu[0] != SVC_GET_RES:
         raise FrameError(f"不是 GET-Response：服务码 0x{apdu[0]:02X}")
     if apdu[1] != 0x01:
@@ -447,7 +482,13 @@ def parse_get_response(apdu: bytes) -> GetResult:
             f"GET 失败：DAR={dar}"
             + (f"（{DLT698_ERRORS.get(dar, '未定义')}）" if dar is not None else "")
         )
-    return GetResult(piid=piid, oad=oad, data=apdu[8:-2])
+    data = apdu[8:-2]
+    values = _decode_values(data)
+    if len(values) != 1:
+        raise FrameError(
+            f"GET-Response 的 Data 应是 1 个 A-XDR 值，解出 {len(values)} 个：{data.hex()}"
+        )
+    return GetResult(piid=piid, oad=oad, data=data)
 
 
 # ---------------------------------------------------------------------------
@@ -458,10 +499,10 @@ def parse_get_response(apdu: bytes) -> GetResult:
 # 是 [2] GetRequestNormalList = SEQUENCE { PIID, SEQUENCE OF OAD }。
 #
 # 编码依据：标准 6.3.1 说 APDU 遵循 A-XDR 编码规则（DL/T 790.6-2010，
-# 本仓库没有该标准的正文）；本文件已有的 array/structure 实现就是
-# 「1 字节元素个数」，SEQUENCE OF OAD 沿用同一个宽度。
-# ⚠️ 附录 H 只给了 [1] Normal 的报文向量，**没有 [2] 的向量**。
-#    因此 count 的宽度是"按项目既有 A-XDR 约定"推的，拿到现场 [2] 报文后要核一次。
+# 本仓库没有该标准的正文）；A-XDR 的 array/structure 用「1 字节元素个数」，
+# SEQUENCE OF OAD 沿用同一个宽度。
+# 附录 H.3.2 有 [2] 的完整请求与响应向量（响应里的 Data 是 3 元素数组），
+# 定界与数组解析都对着那组真实字节锁。
 # ---------------------------------------------------------------------------
 
 CHOICE_GET_NORMAL = 0x01
@@ -498,8 +539,10 @@ def get_response_list(piid: int, results: list[tuple[int, bytes]]) -> bytes:
         body += int(oad).to_bytes(4, "big")
         body.append(GET_RESULT_DATA)
         body += data
-        # Data 必须是本解析器能定界的一个标量，否则这条响应解不开
-        _one_axdr_len(data)
+        # Data 必须正好是一个可定界的 A-XDR 值；多值或半截都造不出合法响应
+        values = _decode_values(data)
+        if len(values) != 1:
+            raise ValueError(f"Data 应是 1 个 A-XDR 值，拿到 {len(values)} 个：{data.hex()}")
     body += bytes(_APDU_TAIL_LEN)
     return bytes(body)
 
@@ -523,7 +566,7 @@ def parse_get_response_list(apdu: bytes) -> GetListResult:
     CHOICE：`[0] DAR` 或 `[1] Data`。**DAR 必须如实报错**，不能把失败项当数据跳过，
     否则主站会拿到比请求更少的读数却以为正常。
     """
-    if len(apdu) < 6:
+    if len(apdu) < 4 + 5 + _APDU_TAIL_LEN:
         raise FrameError(f"GET-Response-List 太短：{len(apdu)} 字节")
     if apdu[0] != SVC_GET_RES:
         raise FrameError(f"不是 GET-Response：服务码 0x{apdu[0]:02X}")
@@ -537,7 +580,8 @@ def parse_get_response_list(apdu: bytes) -> GetListResult:
     i = 4
     items: list[GetResult] = []
     for _ in range(count):
-        if i + 5 > len(apdu):
+        # 每个 A-ResultNormal 至少 4(OAD)+1(Get-Result 标志),并且要留出 2 字节尾部
+        if i + 5 > len(apdu) - _APDU_TAIL_LEN:
             raise FrameError(f"第 {len(items) + 1} 个 A-ResultNormal 被截断")
         oad = int.from_bytes(apdu[i:i + 4], "big")
         flag = apdu[i + 4]
@@ -548,11 +592,13 @@ def parse_get_response_list(apdu: bytes) -> GetListResult:
                 f"OAD {oad:#010x} 读取失败：DAR={dar}"
                 + (f"（{DLT698_ERRORS.get(dar, '未定义')}）" if dar is not None else "")
             )
-        n = _one_axdr_len(apdu[i:])
-        items.append(GetResult(piid=piid, oad=oad, data=apdu[i:i + n]))
-        i += n
+        value, consumed = _decode_one(apdu[i:])
+        items.append(GetResult(piid=piid, oad=oad, data=apdu[i:i + consumed]))
+        i += consumed
 
     tail = apdu[i:]
-    if len(tail) > _APDU_TAIL_LEN:
-        raise FrameError(f"解析完 {count} 项后还剩 {len(tail)} 字节：{tail.hex()}")
+    if len(tail) != _APDU_TAIL_LEN:
+        raise FrameError(
+            f"解析完 {count} 项后尾部应是 {_APDU_TAIL_LEN} 字节，实际 {len(tail)} 字节：{tail.hex()}"
+        )
     return GetListResult(piid=piid, results=tuple(items))

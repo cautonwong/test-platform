@@ -348,6 +348,19 @@ inverter.read("有功功率")
    收集阶段会检查"按设备参数化的用例是否被某个型号的矩阵覆盖",没覆盖会直接报错,不会静默少跑。
 4. 用 `python -m pytest --select case:<新编号>` 确认只跑它。
 
+## 用例管理:先清点,再筛
+
+```bash
+testplatform cases --root .                    # 项目里的 @case:编号 / 条款 / 标签 / 文件行
+testplatform cases --root . --tag 一致性        # 按标签筛;--clause / --id 也能叠加
+testplatform cases --root . --json             # 机器读
+testplatform tasks --root .                    # 列出任务并逐个加载校验
+testplatform tasks --root . --kind acceptance  # 只看验收任务;--tag 按任务的选择器筛
+```
+
+`cases` 只扫源码里的 `@case`,不跑用例,也不依赖设备清单;`tasks` 会把任务真的加载一遍,
+坏字段、坏清单、未注册的规约在列表阶段就报,不会等到跑到一半。运行期筛选仍然走 `--select`。
+
 ## 跑之前先想清楚你这轮在验什么
 
 四条命令,各验一件事。默认套件只跑第一条,其余三条是显式选择。
@@ -376,7 +389,7 @@ python tools/attribute_round.py                 # 取 evidence/ 下最新的一�
 
 它把结论分成四类(设备不合格 / 测试无效 / 平台错误 / 没有有效结论),每一条都指回证据文件行,
 并写一份 `evidence/<会话>/attribution.json` 给机器看。四类为什么不许合并、全绿一轮为什么还要报规模,
-见 `README.md` 的「一轮的失败归因」。
+见 [`docs/reference/attribution.md`](reference/attribution.md)。
 
 ### 2. `--count=3`:对应票 10 的「连续多次全量跑,结果稳定」
 

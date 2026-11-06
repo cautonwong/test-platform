@@ -5,7 +5,7 @@
 
 ## 背景
 
-支撑设备可以声明 `via: <dut>`(经某台被测设备访问,例如电表经采集终端接入)。清单层**已经**做 via 拓扑排序与环检测(`config/manifest.py`),但装配期 `connect_support()` 只迭代 support 角色,`via` 指向的 dut 从未被连接 —— 于是每条用例都报「周边设备连接失败: terminal_01 状态 DISCONNECTED」,**读起来像设备坏,实际是上游没通**。
+支撑设备可以声明 `via: <dut>`(经某台被测设备访问,例如电表经采集终端接入)。清单层**已经**做 via 拓扑排序与环检测(`config/manifest/parsing.py`),但装配期 `connect_support()` 只迭代 support 角色,`via` 指向的 dut 从未被连接 —— 于是每条用例都报「周边设备连接失败: terminal_01 状态 DISCONNECTED」,**读起来像设备坏,实际是上游没通**。
 
 ## 决定
 

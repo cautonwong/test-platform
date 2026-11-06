@@ -220,6 +220,8 @@ FREE_TEXT_ALLOWED = {
     ("tests_platform/test_evidence_contract.py", "free: 平台:证据"),
     ("tests_platform/test_teardown.py", "free: 平台:清理"),
     ("tests_platform/test_sample_product_ships_with_the_package.py", "free: 平台:分发"),
+    ("tests_unit/test_new_case.py", "free: EdgeC issue #123"),
+    ("tests_unit/test_new_case.py", r'free: 用户说"电压要稳"\n第二行'),
 }
 FREE_TEXT_DIRS = ("tests_platform/", "tests_unit/", "tests_scenario/")
 # 随包走的那份 configs/ 副本(源在仓库根):它是资源,不是用例,不参与条款字面量扫描。

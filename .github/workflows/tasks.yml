@@ -34,7 +34,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
-        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+        env:
+          LOCAL_UNSUPPORTED: 装依赖会改动本机环境;本地默认套件已含这些依赖
       - name: 跑任务 minimal
         run: python tools/run_task.py configs/tasks/minimal.yaml --root ${{ github.workspace }} --evidence-dir reports/minimal
       - name: 上传报告与证据
@@ -55,7 +56,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
-        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+        env:
+          LOCAL_UNSUPPORTED: 装依赖会改动本机环境;本地默认套件已含这些依赖
       - name: 跑任务 mbap
         run: python tools/run_task.py configs/tasks/mbap.yaml --root ${{ github.workspace }} --evidence-dir reports/mbap
       - name: 上传报告与证据
@@ -78,7 +80,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
-        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+        env:
+          LOCAL_UNSUPPORTED: 装依赖会改动本机环境;本地默认套件已含这些依赖
       - name: 跑任务 acceptance_sample
         run: python tools/run_task.py configs/tasks/acceptance_sample.yaml --root ${{ github.workspace }} --evidence-dir reports/acceptance_sample
       - name: 上传报告与证据
@@ -101,7 +104,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
-        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+        env:
+          LOCAL_UNSUPPORTED: 装依赖会改动本机环境;本地默认套件已含这些依赖
       - name: 校验资产目录与磁盘一致
         run: python tools/catalog.py --verify
 
@@ -174,9 +178,13 @@ jobs:
           # 引号不能省:不加引号 YAML 把它读成浮点 3.1,setup-python 会去找 3.1。
           python-version: "3.10"
       - name: 装测试依赖
-        run: python -m pip install --quiet pytest pyyaml openpyxl build pytest-timeout pytest-repeat pytest-randomly pytest-xdist
+        run: python -m pip install --quiet pytest pyyaml openpyxl build paho-mqtt pytest-cov pytest-timeout pytest-repeat pytest-randomly pytest-xdist ruff
+      - name: lint
+        run: ruff check .
       - name: 全量
-        run: python -m pytest -q
+        # --cov 走 pyproject 里写死的 domain/protocol 口径与 93% 门槛:
+        # 不写这一句时 fail_under 只是个休眠的数字,谁也不跑。
+        run: python -m pytest -q --cov
 
   # 发布只在 CI 里发生:本地没有任何发布路径(没有脚本、没有说明)。
   # id-token: write 是 provenance 必需的 —— 少了它 npm 会拒绝带 --provenance 的发布。
@@ -199,7 +207,8 @@ jobs:
           node-version: "20"
           registry-url: https://registry.npmjs.org
       - run: pip install build
-        local: unsupported 装依赖会改动本机环境
+        env:
+          LOCAL_UNSUPPORTED: 装依赖会改动本机环境
       - name: 打包(轮子进 dist/,指纹写进 package.json)
         working-directory: npm
         run: npm run prepack
@@ -225,7 +234,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
-        local: unsupported 装依赖会改动本机环境;本地默认套件已含这些依赖
+        env:
+          LOCAL_UNSUPPORTED: 装依赖会改动本机环境;本地默认套件已含这些依赖
       - name: 取回各任务的报告
         uses: actions/download-artifact@v4
         with:

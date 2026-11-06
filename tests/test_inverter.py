@@ -94,8 +94,9 @@ def test_inverter_reading_recorded_in_history(inverter):
     断言计数器而不是 len(history):history 是固定窗口,长度会封顶。"""
     inverter.connect()
     before = inverter.device.readings_recorded
-    inverter.read_all()
+    reading = inverter.read_all()
     assert inverter.device.readings_recorded == before + 1
+    assert reading.passed is True, reading.breaches
 
 
 @case(id="M_00_00_01_000004_02", clause="GBT37408-5.3.1", tags=["一致性", "实时性"])
@@ -111,7 +112,7 @@ def test_inverter_responds_within_protocol_timeout(composition_root, inverter, i
          而不是"测了但其实没测到东西"却显示为通过。
     """
     if composition_root.mode_of(inverter_id) != "real":
-        pytest.skip(f"{inverter_id} 当前运行在模拟器模式,响应延迟测试在模拟器下没有意义")
+        pytest.skip(f"模拟器模式: {inverter_id} 当前运行在模拟器模式,响应延迟测试在模拟器下没有意义")
 
     inverter.connect()
     start = time.monotonic()

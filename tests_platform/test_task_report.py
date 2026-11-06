@@ -2,7 +2,7 @@
 任务报告(票 04)的验收:四档结论各能构造、两栏通过率与分母写得出、未测两栏合并不了、
 场景失败有归属、`clause.summary` 不进人读报告。
 
-假输入直接写证据目录(与 execution/task.py 写出来的同名同形文件),跑报告不跑任务 ——
+假输入直接写证据目录(与 execution/task/runtime.py 写出来的同名同形文件),跑报告不跑任务 ——
 分类逻辑要在毫秒级用例里能红,不然"改错一处"只能靠真崩溃去撞。真任务只留一条:
 接线(跑完真的落下 report.md / summary.json)。
 
@@ -363,9 +363,9 @@ def test_a_smoke_round_that_verified_no_device_is_qualified_but_says_which_kind(
     "reason, expected",
     [
         ("real_hardware 用例在 --force-simulator 下自动跳过", "平台不支持"),
-        ("Skipped: inv_01(型号 x)未声明能力 ['无功电量'],跳过", "设备缺能力"),
+        ("Skipped: 未声明能力: inv_01(型号 x) ['无功电量'],跳过", "设备缺能力"),
         (
-            "含 1 个待人工确认步骤(前面的 2 个自动步骤已执行且通过):"
+            "待人工确认: 含 1 个待人工确认步骤(前面的 2 个自动步骤已执行且通过):"
             "不算通过也不算失败,由操作员确认后回填:合闸",
             "人工步骤",
         ),
@@ -413,6 +413,27 @@ def test_a_skip_with_a_reason_outside_the_four_is_outside_untested(tmp_path):
     assert [row["kind"] for row in report.outside_untested] == ["skip"]
     assert report.verdict == "incomplete", report.note
     assert set(DECLARED_REASONS) == {"平台不支持", "设备缺能力", "人工步骤", "已知缺陷跳过"}
+
+
+@case(id="T_00_00_04_000000_21", clause="free: 平台:测试报告", tags=["报告"])
+def test_a_negated_declared_marker_is_not_a_declared_skip(tmp_path):
+    """「不是已知缺陷」不是已知缺陷:按子串认会把没跑的用例涂成灰色。"""
+    directory = _round(
+        tmp_path,
+        scope=_scope(
+            collected=[_device_case(DEVICE_CASE)],
+            executed=[DEVICE_NODEID],
+            skipped=[{"nodeid": "tests/test_meter.py::test_skipped", "case": OTHER_CASE,
+                      "reason": "不是已知缺陷:环境缺 paho"}],
+        ),
+        devices={"meter_01": [_reading(DEVICE_CASE)]},
+    )
+
+    report = build(directory)
+
+    assert report.declared_untested == []
+    assert [row["kind"] for row in report.outside_untested] == ["skip"]
+    assert report.verdict == "incomplete", report.note
 
 
 # ------------------------------------------- 设备没有读数:分得清的才不拉低 ----
@@ -594,7 +615,7 @@ def _round(
     platform_errors: str | None = None,
     round_status: dict | None = None,
 ) -> Path:
-    """一个任务目录:与 execution/task.py + 证据层写出来的文件同名同形。"""
+    """一个任务目录:与 execution/task/runtime.py + 证据层写出来的文件同名同形。"""
     directory = tmp_path / "round"
     directory.mkdir()
     _write(directory, "task.json", task or _task())

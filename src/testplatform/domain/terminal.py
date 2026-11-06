@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Dict, Mapping
 
 from .device import Device
+from .exceptions import NoVerdictError
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,12 @@ class TerminalReading:
 
     timestamp: datetime
     readings: Dict[str, float]
+
+    @property
+    def passed(self) -> bool:
+        # 终端没有验收判据:拿电表的判据判终端就是假结论。访问即报错,
+        # 比返回 None 更早暴露"这条用例在拿一个不存在的结论"。
+        raise NoVerdictError("终端读数没有判据结论:终端只记录读数,不判合格")
 
 
 class Terminal(Device):

@@ -53,6 +53,7 @@ def test_battery_reading_key_reaches_the_domain_quantity(battery):
 
     for key, quantity in (("SOC", "soc_percent"), ("电压", "voltage_v"), ("电流", "current_a")):
         assert reading.readings[key] == getattr(battery.device.history[-1], quantity)
+    assert reading.passed is True, reading.breaches
 
 
 @case(id="M_00_00_01_000003_05", clause="GBT34131-5.2.4", tags=["一致性", "告警"])

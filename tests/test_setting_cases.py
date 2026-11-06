@@ -117,7 +117,7 @@ def _manual_reason(manual: tuple[ManualStep, ...], executed: int) -> str:
     """
     actions = ";".join(step.action for step in manual)
     return (
-        f"含 {len(manual)} 个待人工确认步骤(前面的 {executed} 个自动步骤已执行且通过):"
+        f"待人工确认: 含 {len(manual)} 个待人工确认步骤(前面的 {executed} 个自动步骤已执行且通过):"
         f"不算通过也不算失败,由操作员确认后回填:{actions}"
     )
 

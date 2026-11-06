@@ -9,7 +9,7 @@ import yaml
 
 
 def load_device_config(config_path: str | Path) -> dict:
-    """整份清单:判据集、型号、设备实例(解析与校验在 config/manifest.py)。"""
+    """整份清单:判据集、型号、设备实例(解析与校验在 config/manifest/)。"""
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"设备配置文件不存在: {path}")

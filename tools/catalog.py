@@ -35,7 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     root = Path.cwd()
     devices = arguments.devices or str(assets.default_devices_path())
     test_roots = arguments.tests or [str(root / name) for name in assets.DEFAULT_TEST_ROOTS]
-    built = assets.build(devices, clauses_path=arguments.clauses, test_roots=test_roots)
+    try:
+        built = assets.build(devices, clauses_path=arguments.clauses, test_roots=test_roots)
+    except assets.CaseScanError as exc:
+        print(f"资产目录扫描失败:{exc}")
+        return 1
 
     if arguments.verify:
         differences = assets.verify(built, arguments.out)

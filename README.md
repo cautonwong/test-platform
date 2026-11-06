@@ -5,11 +5,11 @@
 
 ## 两个用法,先看你在哪一边
 
-**① 写用例的人**(扩设备/协议/用例):照 `docs/how-to/` 抄。写的是 **Python**——驱动、编解码、用例、模拟器都是 `.py`。
-**② 跑测试的人**(构建测试任务 → 跑 → 出报告):写一份 `tasks/<id>.yaml`,然后 `python tools/run_task.py <任务> --root . --evidence-dir reports/<任务>`,再看 `reports/<任务>/summary.json`,最后 `python tools/gate.py reports` 出 CI 判定。
+**① 写用例的人**(扩设备/协议/用例):照 `docs/how-to/` 抄。写的是 **Python**——驱动、编解码、用例、模拟器都是 `.py`。第一次写先看 `docs/how-to/write-your-first-case.md`。
+**② 跑测试的人**(构建测试任务 → 跑 → 出报告):写一份 `tasks/<id>.yaml`,然后 `testplatform run <任务> --root . --evidence-dir reports/<任务>`,再看 `reports/<任务>/summary.json`,最后 `testplatform gate reports` 出 CI 判定。源码布局里 `testplatform run` / `testplatform gate` 与 `python tools/run_task.py` / `python tools/gate.py` 是同一个 main。
 
 > 分发后的形态是 `npx @cautonwong/testplatform init|run|gate|scaffold`——**`npx` 只是外壳,写的仍然是 Python**。
-> 这一层正在做(票 09/09b),当前请用源码形态:`pip install -e .`。
+> `pip install -e .` 之后 `testplatform run|gate|scaffold|new-case` 已经可用;`npx` 负责在项目里准备 Python 环境。
 
 **平台能保证**:跑起来、留证据(读数/帧/注入/死因分类)、四档结论、能归因到设备或步骤。
 **平台不保证**:判据对不对。阈值和点表真值来自设备手册,平台只能保证"按你给的判据一致地判",不能替你判对错。
@@ -43,6 +43,16 @@ python -m pytest --select model:dtsd1352_modbus,tag:一致性  # 条件叠加,�
 ```
 
 筛完一条不剩会直接报错,并说清是"清单里没有这个型号"还是"没有用例带这个标签",不会报 0 passed 的绿。
+
+不跑用例,先清点项目里有什么:
+
+```bash
+testplatform cases --root . --tag 一致性          # 列出 @case:编号/条款/标签/文件行
+testplatform cases --root . --json               # 同一份数据给 CI 或报告读
+testplatform tasks --root . --kind acceptance    # 列出任务并逐个加载校验
+```
+
+`cases` 只读源码,不执行任何用例;`tasks` 会把每个任务真正加载一遍,缺字段、坏清单、未知规约当场报出来。
 `--lf` 按节点 id 缓存:设备清单改了(增删设备、改 id、改型号)就先跑一次全量,别拿旧缓存当结论。
 
 接真实串口 / SSH / HTTP / MQTT / CAN 时,按 `pyproject.toml` 里的 extras 装对应的那一个
@@ -78,7 +88,7 @@ python -m pytest -n 4 --dist loadgroup --no-evidence          # 同上,不落证
 
 每个 worker 是独立进程,各自把组合根从头装配一次、各自 teardown:设备连接、驱动、判据、
 事件队列都在自己进程里,worker 之间不共享任何运行时状态。证据也按 worker 分开
-(目录名带 worker 名,见「证据」一节),同一台设备的用例落在一个 worker 上,
+(目录名带 worker 名,见 [证据](docs/reference/evidence.md)),同一台设备的用例落在一个 worker 上,
 不会有两条用例从两个 worker 写同一份证据文件。
 
 分组不是默认相信的:跑 `python tests/parallel_topology_check.py` 会造一份两台终端、
@@ -557,221 +567,13 @@ test_platform/
 
 ## 扩展指南
 
-### 新增一个型号(同大类、同规约)
+型号、规约、设备类型、接入方式怎么加,见 [`docs/reference/extension-guide.md`](docs/reference/extension-guide.md)。
 
-只改 `configs/devices.yaml`:在 `models` 里加一段,再在 `devices` 里加至少一条引用它。
-点表、能力、判据集写一次,同型号的多台实例不重复。零 Python 文件;
-已有的一致性测试会自动对新型号的每台设备展开一次(`test_xxx[新设备id]`)。
-
-### 新增一个规约(同一个大类,比如给电表再加一种规约)
-
-1. `protocol/` 下加一个模块:拼帧、校验、按点表项解码,纯函数。
-2. 在对应驱动里加一个 `read_raw`(一个点表项 → 一次收发 → 原始字节),用 `@register_device("meter", "新规约")` 注册。
-   若该规约的地址是连续的(能一次读一段),再给一个可选的 `read_raw_many` 做块读;
-   给不出就不要给 —— 通用读取路径会逐点读,语义一样。
-3. `config/manifest.py` 的 `PROTOCOL_ACCESS` 加一行"新规约 → 允许的接入方式"。
-4. 清单里型号的 `protocol:` 换成新规约。
-
-通用读取路径 `drivers/point_table_driver.py` 不改 —— DL/T645 接入时验证过这一点。
-
-### 新增一个设备类型(新大类,比如充电桩)
-
-1. `domain/` 下新建聚合根(参考 `battery.py`):只写物理量与不变量,不碰协议。
-2. `drivers/` 下新建驱动(参考 `battery_driver.py`):用 `@register_device("新大类", "规约")` 注册工厂,
-   并在 `composition/root.py` 顶部的 import 列表加一行,让装饰器真正执行。
-3. 清单里加型号 + 设备。
-
-测试层不用改:按类型展开的 fixture 由注册表生成(`tests/conftest.py` 末尾),
-`@pytest.mark.requires_capability` 按型号声明的能力跳过。
-
-### 新增一种周边设备类型
-
-同"新增一个设备类型",清单里那条设备写 `role: support`。周边设备不判合格、不参与一致性测试展开;
-它连不上时结论是"测试无效"(整轮 skip),不是被测设备不合格。
-
-### 台架型号 `grid_simulator_3ph`:量名、占位地址、三相设定
-
-上游条款的台架前置是一整块三相设定,量名按上游写法声明,**三相电压 / 电流是独立的量**(条款里
-`Ua` 和 `Ub` 是两件事,合成一个「电压」就把信息丢在清单里了):
-
-```yaml
-  grid_simulator_3ph:
-    type: grid_simulator
-    protocol: vendor_ascii
-    capabilities: [Ua, Ub, Uc, Ia, Ib, Ic, θa, θb, θc, QUaUb, QUaUc, Fre, 接线方式, MeterConst]
-    point_table:
-      Ua: {address: TODO, length: 7, encoding: ascii, unit: V, writable: true}
-      ...
-      接线方式: {address: TODO, length: 2, encoding: uint, writable: true}   # 枚举,不是模拟量
-      MeterConst: {address: TODO, length: 2, encoding: uint, writable: true}  # 整数参数
-```
-
-- **地址是占位(`TODO`)。** 真实台架的寄存器地址 / 编码 / 倍率还没拿到。`mode: real` 时装配期
-  直接报错并列出是哪几个量;`mode: simulator` 照常跑。编一个"看着像"的地址写进去、回读还一致,
-  是最坏的一种假绿 —— 宁可报缺。
-- **量名是清单契约。** 旧清单里的 `电压` / `频率` 不再认,报错直接给改法;
-  不做别名(同一个量两个名字,迟早有一处改动没跟上)。
-- **`接线方式` 的枚举名 → 整数在 `configs/import/params.yaml`**,不散在驱动里;驱动只接收整数
-  (设成 `3.5` 是平台自身的不变量违反)。
-- **三相设定是 `SET_GRID3 量名=值 …` 一帧**,应答按同一份量名回。模拟台架
-  (`connection: {simulated_grid: true}`)按设定回读,用来验驱动的帧与量名;
-  单相的 `apply_grid(电压, 频率)` 与 `initial_setpoint` 照旧。
-
-### 一条用例失败之后台架怎么复位
-
-写原语上线之后,"用例把参数改掉之后失败"会污染后面所有用例:下一个用例读到的值会被判成
-**设备不合格**,而归因里没有"被上一条用例污染"这一类。所以收尾按 `role` 分层:
-
-| 角色 | 收尾做什么 | 失败时 |
-|---|---|---|
-| 周边设备 `support` | 回到清单声明的 `initial_setpoint`(如 `{voltage_v: 230, freq_hz: 50}`) | **测试无效**,不是设备不合格 |
-| 被测设备 `dut` | 只做**用例自己声明的**收尾(`scenario.on_cleanup(...)`) | 这条用例失败,证据标 `cleanup_failed` |
-| 平台自身 | 补证据 + 断开 | — |
-
-- 复位在**每条用例结束后**与整轮结束前各做一次(`tests/conftest.py` 与
-  `tests_scenario/conftest.py` 的 autouse fixture 调 `CompositionRoot.restore_support()`),
-  所以下一条用例拿到的台架总是在初始设定上。恢复失败 → `skip("测试无效: …")`,退出码不变。
-- **平台从不在收尾里往被测设备写东西**:整轮结束时设备被人动过,比留在工厂模式更难查。
-  `initial_setpoint` 只允许写在 `role: support` 的设备上(清单解析时拒绝),
-  复位也只遍历这张表;`tests/test_bench_restore.py` 用"复位与 teardown 期间被测设备零发送帧"来钉这一条。
-- 声明了 `initial_setpoint` 而驱动没有 `apply_initial_setpoint`(消费者定义的
-  `SetpointRestorableDriver` 接口)时**装配期就报错**:否则复位只是"静默没发生",
-  后面所有读数都被污染,报告里看不出来。
-
-### 新增一种接入方式(比如新的串口服务器、WebSocket 通道)
-
-1. `transport/` 下实现 `interfaces.py` 里某个 Protocol(总线类设备一般用 `ByteStreamTransport`)。
-2. `@register_transport("名字", "real")` 注册真实实现,`simulators.py` 里注册 `"simulator"` 模式。
-3. 清单里设 `access: 名字`;还要在 `config/manifest.py` 的 `PROTOCOL_ACCESS` 里给对应规约放行。
-
-`gateway_transport.py` 是真实示例:作为新的字节流实现加入,逆变器和电池的驱动、聚合根一行未改。
-
-**`http` / `mqtt` / `ssh` 三条传输已实现并注册,但清单里暂时不可达**:今天没有任何规约在
-`PROTOCOL_ACCESS` 里放行这三种 access(没有设备用 REST / MQTT 上报 / 主机命令访问),
-所以在 `devices.yaml` 里写 `access: http` 会被 `parse_manifest` 拒绝,并说明原因与下一步。
-这不是坏代码、也不是漏实现:凭空造一个 `http` 规约只会得到「能配但装配必失败」的假象。
-要接这类设备,先定它用什么规约上这种接入(如 EMS 走 REST、HEMS 走 MQTT 上报、工控机走 SSH 命令),
-再在 `PROTOCOL_ACCESS` 里放行。三个类与三个注册工厂上的注释指向同一条边界(`TRANSPORT_ONLY_ACCESS`)。
-
-### CAN 接入:接口类型不是 socketcan 专用
-
-CAN 设备的型号规约写 `canopen`(CANopen 是 CAN 上的应用层规约,CiA 301;电池 / 储能另有
-CiA 418 / 419 行规),它在 `PROTOCOL_ACCESS` 里只放行 `access: can`。所以 CAN 设备的清单长这样:
-
-```yaml
-models:
-  bms_can:
-    type: battery
-    protocol: canopen
-devices:
-  - id: bat_can
-    model: bms_can
-    access: can
-    connection: {channel: can0, interface: pcan, bitrate: 500000}
-```
-
-接口类型在清单里配,不写 `interface` 时按平台给缺省(Linux `socketcan`,
-Windows `pcan`,其余平台 `slcan`)。可用值(白名单在 `config/manifest.py` 的
-`CAN_INTERFACES`):`socketcan`(Linux 内核自带)、`pcan`(PEAK PCAN-USB)、
-`vector`(Vector 板卡)、`slcan`(USB 转 CAN 串口适配器)、
-`virtual`(没有硬件时自测)。`socketcan` 只有 Linux 有,写死在代码里会让 Windows 上接了
-CAN 设备直接起不来;未知值在装配前就报错并列出可用值,connection 里拼错的键也一样拒绝。
-`canopen` 目前没有设备驱动:装配会停在"未找到设备工厂",而不是停在清单校验。
-
-### serial / tcp / gateway_ssh 的 connection 键是闭合的
-
-这三族字节流的 `connection` 键与传输实现真正读取的键一一对应,拼错立即在装配前报错,
-不会静默取缺省值(波特率把 `baudrate` 拼成 `baudrat`,真机上表现为"连上了但读数是乱的"):
-
-```yaml
-- id: bat_01
-  access: serial
-  connection: {port: COM3, baudrate: 19200}          # port 必填
-- id: inv_01
-  access: tcp
-  connection: {host: 192.168.1.50, port: 502}        # host / port 都必填
-- id: inv_02
-  access: gateway_ssh
-  connection: {gateway_host: 10.0.0.5, gateway_user: test,   # 这三个必填
-               local_bus: can0, gateway_key_path: ~/.ssh/id_rsa}  # key_path 可选
-```
-
-模拟器专用键 `simulated_response` / `simulated_645` / `simulated_registers` / `simulated_grid`
-四族都合法。
-`local_bus` 会被拼进网关主机上执行的 shell 命令,所以只允许 64 个以内的字符,字符集
-`A-Za-z0-9_.:/-`(总线名如 `can0`,设备节点如 `/dev/ttyUSB0`);带 `;` / `|` / `$()` / 反引号 /
-空格 / 换行的值在装配前直接报错。
-必填键只在 `mode: real` 下强制:模拟器不读主机名和端口,`mode: simulator` 下不逼你写一个
-没人读的假地址。可用键在 `config/manifest.py` 的 `STREAM_ACCESS_CONNECTION_KEYS`。
-
-### SSH 主机密钥:未配置 = 不校验
-
-经工控机网关(`gateway_ssh`)或 SSH 命令(`ssh`)接真机时,平台默认**不校验对端主机密钥**
-—— 与修复前完全一致(台架网络里有人冒充网关时,平台会把别人的回帧当设备数据,证据里看不出来)。
-要挡这个,在 `connection` 里配上 known_hosts 路径:
-
-```yaml
-- id: inv_02
-  access: gateway_ssh
-  mode: real
-  connection:
-    gateway_host: 10.0.0.5
-    gateway_user: test
-    local_bus: can0
-    gateway_known_hosts: ~/.ssh/known_hosts   # 直连 ssh 用键名 known_hosts
-```
-
-- **未配置** → 不校验主机密钥(与以前一样连得上)。这是当前缺省;建连时记一行
-  `注意: <主机> 的主机密钥未校验(未配置 known_hosts…)`,让运行时看得出这次连接信任到哪。
-- **配置且匹配** → 照常连接,并记一行 `SSH 主机密钥已校验: <主机> <算法> <base64>` 日志。
-- **配置且不匹配**(或该主机根本没登记)→ 连接被拒绝,报错里有**期望指纹**、**实际指纹**
-  和登记命令(`ssh-keyscan -p <端口> <主机> >> <known_hosts>`)。人工确认那台机器确实是
-  你的网关之后再把指纹登记进去 —— 换个密钥的网关和冒充的网关在这一层长得一模一样。
-
-装配期只校验**路径存在且是文件**,不读内容:内容写错就会变成“真机连不上、报认证失败”,
-另一种难查的失败形态。第一次登记网关指纹:
-
-```bash
-ssh-keyscan -p 22 10.0.0.5 >> ~/.ssh/known_hosts   # 先人工核对输出里的指纹
-```
-
-比对与拒绝在 paramiko 的 `missing_host_key` 钩子里(`transport/real_transports.py` 的
-`_VerifyHostKeyPolicy`):每次建连只算一次指纹,超时重连也必经它。
-
-### 真串口的两个卫生参数(RS485 换向、帧间隔)
-
-这两件事**归平台管,不归适配器管**,而且模拟器和假串口永远测不出来:真机上出问题时,
-现象看起来都像"设备坏了"。
-
-**换向前清残留缓冲(无需配置)。** `send` 在写出请求帧之前先 `reset_input_buffer()`,把上一帧
-剩下的字节(从站多发的那个字节、上一次超时后迟到的应答)丢掉。不清的话下一帧从头就错位,
-而错位解出来的往往是一个"看着正常"的**假读数**,比 CRC 失败难查得多。
-它刻意放在 `send` 前、不放在 `receive` 前:清在 `receive` 前会把刚好先到的应答一起丢掉。
-
-**最小帧间隔 `inter_frame_delay_ms`(可选,缺省 0 = 不等待)。** Modbus RTU 要求帧间静默
-至少 3.5 个字符时间。平台现在总是背靠背发送;有些从站在严格总线上会因此把两帧粘成一帧,
-表现为"设备不回话 / CRC 错"。遇到这种现场就配它:
-
-```yaml
-- id: meter_01
-  access: serial
-  connection: {port: COM3, baudrate: 9600, inter_frame_delay_ms: 4}
-```
-
-按波特率估:一个字符 11 位(8 数据位 + 起始位 + 校验位 + 停止位),3.5 字符 = 38.5 位,
-所以 `inter_frame_delay_ms ≈ 38500 / baudrate` —— 9600 下约 4ms,19200 下约 2ms,
-115200 下不到 1ms(取整到 0 就没意义了,老实的做法是至少配 1)。3.5 字符时间是协议下限,
-裕量按现场给;配得过大只是让每帧慢一点。
-缺省 0 时**一次都不调 sleep**,不给所有跑法平白加延迟。
-
-**局限:帧间隔是按连接算的。** 计时器在一条 `transport` 实例里。同一台设备背靠背读多个点时
-它生效;但如果同一条物理总线(同一条 RS485)上挂着多台设备、它们各自有自己的 transport
-(比如两个 `access: serial` 的设备各写了一台串口适配器),**间隔不会被跨连接强制执行**,
-两条连接之间的帧仍然可能粘在一起。这种情况真正的解法是让它们共享一条总线(用 `via:`
-挂在同一台上游设备下),或者把 `inter_frame_delay_ms` 配得比单帧往返大,让背靠背概率降下来。
-
+速记:同型号改 YAML;新规约加协议模块并在驱动里注册;新设备类型加聚合根和驱动;新接入方式加 transport 并注册。
 
 ## 写用例
+
+第一次写:照 [`docs/how-to/write-your-first-case.md`](docs/how-to/write-your-first-case.md) 走一遍(10 分钟,从零到报告)。
 
 - 一致性测试:`tests/`,用按类型展开的 fixture(如 `inverter`)写契约用例。
 - 平台自身单测:`tests_unit/`,直接 new 聚合根或用 Fake 驱动,不需要设备清单。
@@ -800,124 +602,11 @@ ssh-keyscan -p 22 10.0.0.5 >> ~/.ssh/known_hosts   # 先人工核对输出里的
 
 ## 证据
 
-默认落盘到 `evidence/<会话时间戳>/<设备id>.jsonl`,每行一条 `frame` / `reading` / `event` /
-`write` / `bench_setup` / `link_lost`(周边设备不合作:收帧阶段断链、收尾没把台架恢复回初始设定、
-或条款的台架前置没发下去,按 `operation` 分开写,见上)/ `evidence_gap`(见下)。`write` 记录带读数键、写下去的物理量、
-回读值与 `verified`(回读是否与写入一致):
-`{"kind": "write", "key": "有功计量模式", "value": 1601, "verified": true, "read_back": 1601.0}`。
-`bench_setup` 是条款的台架前置下发了什么(写在被测设备那一份里,排在随后的 `reading` 之前)。
-写失败(超时 / 被拒)不写这条 —— 它已经落在那条 `frame` 记录的 `error` 上。会话目录下另有 `round-status.json`:
-这一轮有没有断链、涉及哪些设备、结论要不要复核,机器可读。
-场景层另写一份 `scenario-<用例名>.json`:参与方与 role、引用的读数键、每步结果、场景结论
-(`passed` / `failed` / `invalid`)、收尾结果(`cleanup` / `cleanup_failed`)与关联的 per-device 文件名
-(见 ADR-0005)。`cleanup` 是一串 `{action, passed}`,失败的条目另带 `error` 与 `message`;
-收尾失败会让结论变 `failed` 并在 `note` 里写明"流程问题,不是判据不合格"。
-`settle` 那一步的 `detail` 带 `reason` / `target_s` / `actual_s`(`actual_s` 是量出来的,不是抄配置)。
-两次运行不互相覆盖;失败的用例也留证据(报文在收发那一刻就写,用例中途崩了收尾还有一次兜底)。
-每台设备一个长期打开的句柄,每条记录写完就 `flush`:记录格式与落盘时机不变(报文仍在收发那一刻进文件),
-而 open/close 次数从「每条记录一次」降到「每台设备一次」—— 一轮 5940 条记录时这一项就是 8 秒。
-句柄在组合根 `teardown()` 与 pytest `sessionfinish` 关闭;每条记录已提前 flush,所以进程被强杀也不丢已写的记录。
-收不回应答也写一条:`receive` 抛异常时那条帧记录带 `error`(`timeout` / `closed` / `disconnect` / 异常类名)
-与已等待时长;应答回来了、只是被帧校验拒掉的,则是没有 `error` 的那条 —— 两者在证据里一眼分得开。
-`reading` 记录带 `mode`(`real` / `simulator`),一份证据自己就能说清结论是模拟器还是真机给的
-(取组合根算好的实际模式,`--force-simulator` 下就是 `simulator`)。
-`reading` 里的 `evaluation.breaches` 是结论的机器可读版:区间违约写 `limit` + `exceeded_by`;
-等值违约(`equals`)没有边界,所以只写 `kind: "equals"` + `expected` + `value`,
-`limit` / `exceeded_by` 不出现 —— 写成 `null` / `0.0` 会被读成“没越界”,与 `passed: false` 自相矛盾。
-证据层目前只支持字节流规约:给非字节流设备(CAN / HTTP / SSH / MQTT)开记录会在装配期直接报错,
-而不是等到第一次连接时爆成 AttributeError。
-`--no-evidence` 关掉后,装配与行为与没有证据层时完全一致(断链归属仍按 role 走:
-周边设备断链照样 skip 测试无效,只是没有链路记录、汇总小节与 round-status.json)。
-
-证据只由 pytest 层写:用例身份靠 `@case` 串起来。直接用 Python 脚本调 driver/组合根跑一遍,
-进程里没有装配好证据会话,`evidence/` 下什么也不会多出来 —— 想留证据就跑 pytest 用例。
-
-并行(`-n 4`)时目录名带上 worker 名:`evidence/<会话时间戳>-gw0/`、`-gw1/` …
-每个 worker 各开一个会话 —— 否则同一秒启动的几个 worker 会算到同一个目录名上,证据互相覆盖。
-同一台设备的所有用例落在同一个 worker,所以一台设备的证据只在一个目录里非空;
-其它 worker 目录下那份同名文件是空的(装配时占位,说明它也被装配过)。
+每条用例自动落盘到 `evidence/<会话>/`;字段、失败与 `--no-evidence` 的行为见 [`docs/reference/evidence.md`](docs/reference/evidence.md)。
 
 ## 一轮的失败归因
 
-跑完一轮之后,一句话回答"这一轮到底哪些设备不合格、哪些是台架问题、断在哪一步":
-
-```bash
-python tools/attribute_round.py                              # 取 evidence/ 下最新的一轮
-python tools/attribute_round.py evidence/20240101T093000      # 指定一轮
-```
-
-输出两份,同一份归因:终端分节输出(人读),以及写回同一个证据目录的 `attribution.json`
-(字段与 `round-status.json` / `scenario-*.json` 同一风格)。四类分开列,一条不并:
-
-| 分节 | 装什么 | 谁来消化 |
-|---|---|---|
-| 设备不合格 | 读数越过 `severity: reject` 的判据,或场景里有被测设备的一步不成立:设备 id、判据、实测值、超出多少、依据哪条用例(编号 + 条款) | 设备/型号 |
-| 未落证据的失败 | pytest 报了失败、证据里却没有结论(用例在写证据之前就崩了):nodeid、用例编号、一行原因。既不算通过,也不许当设备不合格;这一栏非空时结论不许是 `clean` | 排障的人 |
-| 测试无效 | 周边设备故障(`link_lost`:收帧阶段断链 / 台架复位失败 / 条款的台架前置没发下去,按 `operation` 分开写)、场景判 `invalid`、断在哪一步、涉及哪台周边设备 | 台架 |
-| 平台错误 | 聚合根不变量被违反(`platform-errors.jsonl`):平台自身有 bug,与被测设备无关 | 平台 |
-| 没有有效结论 | 被 `--select` / 适用矩阵筛掉、被能力或 `real_hardware` 跳过、收集到了但证据里没有读数、在范围内却没有读数 —— 一律不算通过 | 排计划的人 |
-
-其中的「设备不合格」里的判据违约与证据层同构:区间违约写 `limit` + `exceeded_by`;
-等值违约(`kind: "equals"`)没有边界,只写 `expected` + `value`,`limit` / `exceeded_by` 不出现 ——
-写成 `null` / `0.0` 会被读成「没越界」,与「这条不合格」自相矛盾。
-
-其中的「证据文件是空的」分三档,显示上分开:不在本轮范围的设备(没被任何用例点到)
-只给一行计数(`另有 N 台设备不在本轮范围内`,名单在 `attribution.json`);用例点了它却根本没跑到
-(`run-scope.json` 的 `executed` 里没有它的用例:被跳过 / `-x` 停下 / 会话被打断)同样只给一行计数,
-一轮一条用例都没执行时写 `这一轮没有执行任何用例,N 台设备的读数无从判断`—— 规模下 264 行说的
-其实是同一件事;设备在范围内、用例也执行了却没读数,才逐台列出(真该测没测时就靠这一档,
-大规模下不能让它浸在范围外的噪声里)。
-最后一档说得出口径:用例进了 `executed`、失败名单里也有它 → `它失败在写证据之前`(指回「未落证据的失败」);
-否则就是 `选中的用例本来就不读数`(正常,不是问题)。两者下一步不同,不写同一句,
-也不写"漏测"(`attribution.json` 里的 kind 是 `no_readings`,真跑过的 nodeid 在 `executed_nodeids`,
-没跑到的设备名单在 `not_run_devices`)。执行条数未知(旧证据没有 `executed`)时退回中性说法,
-不猜是哪一种。
-设备范围从哪来:按设备参数化的用例在 `run-scope.json` 里带 `devices`,场景用例取
-`scenario-*.json` 的 `participants`;两边都交不出设备时报告写"设备范围: 未知",仍逐台列出。
-
-证据里丢掉的读数也要留下痕迹:取增量时若两轮之间记的读数超过 `history` 窗口(1000 条),
-最旧的那几条已被裁掉、取不回来 —— 这时写一条 `evidence_gap`(`kind` / `missing` / `window` / `note`),
-缺的条数明写:`{"kind": "evidence_gap", "missing": 5, "window": 1000, ...}`。
-没有它,证据会看起来完整而实际少条,“失败必留证据”就无声地破了。没超出窗口的轮次不写这条
-(否则每轮多一条噪声,真缺口反正浸在里面)。
-
-证据里的时间戳一律带偏移:每条记录的 `at` 是 UTC(`2026-10-22T07:23:54.065+00:00`),
-领域读数与事件的 `timestamp` / `occurred_at` 也带时区 —— 两台台架各跑一轮、把证据并到一起时
-才排得出先后。排序用 `reporting.evidence.parse_at()`:旧证据(这条规则之前的目录)的 `at`
-没有偏移,按本地时间理解 —— **已知限制**:这类旧记录只对写出它的那台机器所在时区准确。
-改格式不改读法,否则跨台架的问题只是换成了跨版本的问题。会话目录名仍是不带偏移的时间戳,
-跨时区机器共用同一个 `evidence/` 目录时“最新一轮”按目录名排会不准。
-
-证据文件本身坏掉另算 `evidence_corrupt`(责任在写证据这一侧,既不算设备不合格也不算平台 bug)。
-写证据时丢的读数也归这一栏(`evidence_gap`),而且报出缺了几条 —— 缺 5 条与缺 5000 条
-不是同一件事。
-每一条都带 `ref`,能直接指回具体的证据文件行(`inv_01.jsonl:14`)或 JSON 字段
-(`scenario-x.json#steps[1]`、`run-scope.json#skipped[0]`),让人自己核对。
-
-「被跳过」按原因聚合:同一原因只占一行 + `(×N)`,只展开前 3 个不同原因,
-其余给一行计数 —— 规模清单下 100 条只差设备 id 的跳过逐条列会把真正的失败挤出屏幕。
-完整名单一条不少地留在 `attribution.json` 的 `no_conclusion` 里。
-
-"没跑"不是"通过":这一轮的范围记在 `evidence/<会话>/run-scope.json` 里
-(收集了哪些用例、真正执行过哪些(`executed`)、每条用例落在哪些设备上、哪些被 `--select` /
-适用矩阵筛掉、哪些被跳过以及为什么、哪些失败了(`failed` = call 阶段失败,`errored` = setup 阶段崩掉))。
-`collected` / `deselected` / `skipped` / `executed` / `failed` / `errored`
-是各不相同的事实,不互相推算 —— 少了这份文件时归因会明说"范围缺失",
-不会把这一轮当成"只有这些用例"。
-失败也要落进来:用例在写证据之前就崩了时证据里一条读数都没有,不记范围就等于从归因里消失。
-它只记范围、不记判定 ——
-判定仍然只有 pytest 报告和证据两处。
-
-全绿一轮也必须说得清规模:输出会写"没有失败项"并给出"执行了 N 条(收集 C 条;其中跳过 S 条;还没跑到 X 条)",
-不是把 0 条失败说成 0 条用例。这里的 N 只取自 `run-scope.json` 的 `executed`(真正执行过的用例):
-`pytest -x` 在第一条失败后停下、或会话被 Ctrl-C 打断时,被收集却没执行的用例不算进去 ——
-拿 `collected − skipped` 推算会正好把它们算成"跑过"。旧证据目录没有 `executed` 时,输出写
-"执行条数未知",不拿任何减法冒充。`attribution.json` 那侧同样只有 `ran.executed` 这一个字段
-说"跑了多少条"(未知时是 `null`),`ran.cases` 只表示证据里留下读数的条数。
-退出码:`clean` 为 0,其余(`failed` / `invalid` / `platform-error` / `evidence-corrupt` /
-`failed-without-evidence` / `incomplete`)为 1。
-`failed-without-evidence` 就是上面「未落证据的失败」那一栏:它保证 pytest 红的时候归因不会说 `clean`,
-`tests/test_attribution_meta_guard.py` 真跑一轮必失败的 pytest 来守这一条。
+`python tools/attribute_round.py` 把一轮证据归成四类,并写 `attribution.json`;判定口径见 [`docs/reference/attribution.md`](docs/reference/attribution.md)。
 
 ## 为什么 `tests_unit/` 可以完全不依赖真实设备或模拟器
 

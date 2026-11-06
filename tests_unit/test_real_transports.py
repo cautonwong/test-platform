@@ -1176,7 +1176,7 @@ def test_http_mqtt_ssh_are_rejected_with_a_reason_the_reader_can_act_on(access):
     message = str(caught.value)
     assert access in message and "已经实现并注册" in message  # 不是"没写",是"没规约用它"
     assert "还没有任何规约声明支持它" in message  # 为什么被拒
-    assert "PROTOCOL_ACCESS" in message  # 下一步做什么
+    assert "register_protocol" in message  # 下一步做什么:在对应驱动里声明 access
     assert (access, "real") in registered_keys(), message  # "已实现"不是嘴上说的
 
 

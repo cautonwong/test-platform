@@ -61,7 +61,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "testplatform"
 version = "{version}"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 
 [tool.setuptools]
 packages = ["testplatform"]

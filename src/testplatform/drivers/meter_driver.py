@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 from testplatform.config.manifest import Model, Point
+from testplatform.config.protocols import register_protocol
 from testplatform.domain.criteria import CriteriaProfile
 from testplatform.domain.meter import Meter
 from testplatform.protocol import dlt645, modbus_rtu, modbus_tcp
@@ -25,6 +26,11 @@ from testplatform.transport.interfaces import ByteStreamTransport
 
 from .point_table_driver import PointTableDriver, ReadRaw, ReadRawMany, WriteRaw
 from .registry import register_device
+
+# 这个文件实现三种规约的接线;接入方式与中央静态表一致,新增规约只在自己的驱动里声明。
+register_protocol("modbus_rtu", access={"serial", "gateway_ssh", "tcp"})
+register_protocol("modbus_tcp", access={"tcp"})
+register_protocol("dlt645", access={"serial", "gateway_ssh"})
 
 # 一次读请求最多读多少个寄存器。协议 PDU 上限是 125 个(0x7D),取 120 留 5 个余量:
 # 有些从站把上限实现得更严(按字节数算),一旦超限回来的不是数据而是异常码 03。

@@ -22,6 +22,7 @@ DL/T 698.45 主站驱动（族 B：DUT 当 698 从站，平台当主站去问）
 from __future__ import annotations
 
 from testplatform.config.manifest import Model
+from testplatform.config.protocols import register_protocol
 from testplatform.domain.criteria import CriteriaProfile
 from testplatform.domain.meter import Meter
 from testplatform.protocol import dlt698
@@ -30,6 +31,8 @@ from testplatform.transport.interfaces import ByteStreamTransport
 from .point_table_driver import PointTableDriver, ReadRaw, ReadRawMany
 from .registry import register_device
 
+register_protocol("dlt698", access={"tcp", "serial"})
+
 # 698 的 A-XDR 类型标签 → 点表 encoding。值字节本身按大端返回，缩放交给点表。
 _TAG_TO_ENCODING = {
     0x12: "uint",  # long-unsigned
@@ -37,6 +40,8 @@ _TAG_TO_ENCODING = {
     0x16: "uint",  # double-long-unsigned
     0x05: "int",  # double-long
     0x17: "float32",  # float32
+    0x09: "ascii",  # octet-string：日期/地址一类文本 token
+    0x0A: "ascii",  # visible-string
 }
 
 
@@ -44,15 +49,36 @@ def _value_bytes(point, tag: int, raw: bytes) -> bytes:
     """校验 A-XDR 类型标签与点表声明是否一致，再返回值字节。
 
     **不一致必须报错**：字节长度可能刚好一样，解出来是个"看着正常"的错值，
-    而帧校验（HCS/FCS）完全正常 —— 比报错难查得多。
+    而帧校验（HCS/FCS）完全正常 —— 比报错难查得多。类型标签不认识时同样报错：
+    按点表声明的 encoding 硬解一个 bit-string，只会得到另一个"看着正常"的数。
     """
     want = getattr(point, "encoding", None)
     got = _TAG_TO_ENCODING.get(tag)
-    if want and got and want != got:
+    if want and got is None:
+        raise ValueError(
+            f"点表项 {point.key!r}: 从站回的类型标签 {tag:#04x} 不对应任何点表编码"
+        )
+    if want and want != got:
         raise ValueError(
             f"点表项 {point.key!r}: 点表声明 {want}，从站回的类型标签 {tag:#04x}（{got}）"
         )
     return raw
+
+
+def _check_response_frame(frame: dlt698.Frame, sa: int) -> None:
+    """应答必须来自请求的那台从站,而且方向位是"服务器发出"。
+
+    共享总线上一条来自别的表的迟到帧,只要 PIID/OAD 形状相同,旧实现就会把它
+    当成本设备的读数 —— 不报错,读数却是别人的。
+    """
+    if frame.sa != bytes([sa]):
+        raise ValueError(
+            f"应答的 SA {frame.sa.hex()} 不是请求的 {sa:#04x}:帧串到别的从站了"
+        )
+    if not frame.ctrl & 0x80:
+        raise ValueError(
+            f"应答控制域 0x{frame.ctrl:02X} 的 DIR 位是 0:这不是服务器发出的响应帧"
+        )
 
 
 def dlt698_reader_many(transport: ByteStreamTransport, sa: int) -> ReadRawMany:
@@ -71,7 +97,9 @@ def dlt698_reader_many(transport: ByteStreamTransport, sa: int) -> ReadRawMany:
         transport.send(dlt698.build_frame(apdu, sa=bytes([sa])))
 
         frame = transport.receive(timeout=2.0, expected=dlt698.response_length)
-        res = dlt698.parse_get_response_list(dlt698.parse_frame(frame).apdu)
+        parsed = dlt698.parse_frame(frame)
+        _check_response_frame(parsed, sa)
+        res = dlt698.parse_get_response_list(parsed.apdu)
         if res.piid != 0x01:
             raise ValueError(f"应答 PIID {res.piid} 与请求 1 不符，串到别的响应了")
         if len(res.results) != len(oads):
@@ -103,7 +131,10 @@ def dlt698_reader(transport: ByteStreamTransport, sa: int) -> ReadRaw:
 
         frame = transport.receive(timeout=2.0, expected=dlt698.response_length)
         parsed = dlt698.parse_frame(frame)
+        _check_response_frame(parsed, sa)
         res = dlt698.parse_get_response(parsed.apdu)
+        if res.piid != 0x01:
+            raise ValueError(f"应答 PIID {res.piid} 与请求 1 不符，串到别的响应了")
         if res.oad != oad:
             raise ValueError(
                 f"点表项 {point.key!r}: 请求 OAD {oad:#010x}，应答却是 {res.oad:#010x} —— "

@@ -52,14 +52,30 @@ def start_server(product: str, port: int) -> MockServer | None:
     registry = EDGEC_WEB / "products" / product / "src" / "generated" / "registry.json"
     if not registry.exists():
         return None
-    process = subprocess.Popen(
-        ["node", "mock-server/server.mjs", "--product", product, "--port", str(port)],
-        cwd=str(EDGEC_WEB),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if not wait_port(port):
+    try:
+        process = subprocess.Popen(
+            ["node", "mock-server/server.mjs", "--product", product, "--port", str(port)],
+            cwd=str(EDGEC_WEB),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return None
+    if not wait_port(port) or process.poll() is not None:
+        if process.poll() is None:
+            process.kill()
+        return None
+    base = f"http://127.0.0.1:{port}"
+    try:
+        info = Client(base).request("GET", "/api/v1/system/info")
+    except Exception:
         process.kill()
+        return None
+    if info.status != 200 or info.body.get("productId") != product:
+        # 端口上已经有一个别的服务 / 另一个 run 的 mock-server:不能把它的状态当成本轮的。
+        process.kill()
+        return None
+    if process.poll() is not None:
         return None
     return MockServer(product=product, port=port, process=process)
 

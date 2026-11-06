@@ -86,15 +86,15 @@ models:
 
 1. `src/testplatform/protocol/<规约>.py` —— 帧的拼装、解析、校验,纯函数。长度要先读应答头才知道时,提供 `response_length(frame) -> int | None`。
 2. `tests_unit/` 加字节向量用例。
-3. `manifest.py` 的 `PROTOCOL_ACCESS` 加「这个规约允许哪些 access」。
-4. `drivers/` 加驱动工厂并 `@register_device("<类型>", "<规约>")`,组合根加一行 import。
+3. 驱动里调用 `register_protocol("<规约>", access={...})`,声明这个规约允许哪些 access。
+4. `drivers/` 加驱动工厂并 `@register_device("<类型>", "<规约>")`,在 `composition/registrations.py` 加一行 import。
 5. 清单里加型号 + 设备。
 
 ## 档 4:新设备类型
 
 1. `src/testplatform/domain/<类型>.py` —— 聚合根。只保护**真正不该发生**的事(未连接就读写、SOC 越界这类),业务判据一律进判据集,不写进类里。
 2. `drivers/<类型>_driver.py` —— 优先走 `PointTableDriver` 通用读取路径;只有需要时序或分支的设备才写专用驱动。
-3. `@register_device("<类型>", "<规约>")` + 组合根 import。测试层的泛型 fixture 和参数化**自动出现**,不用改 `tests/conftest.py`。
+3. `@register_device("<类型>", "<规约>")` + `composition/registrations.py` 加一行 import。测试层的泛型 fixture 和参数化**自动出现**,不用改 `tests/conftest.py`。
 4. 清单里加 `criteria_profiles` 一段 + 型号 + 设备;`test_matrix` 里给这个型号加 `tag:` 或编号。
 5. `tests/test_<类型>.py` —— 照 `tests/test_inverter.py` 的结构写契约用例。
 

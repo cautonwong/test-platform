@@ -143,6 +143,131 @@ def settle(seconds: float, reason: str = "", *, confirm_long: bool = False) -> S
     )
 
 
+class ScenarioRecorder:
+    """场景用例的门面:少写样板,但不替调用方编造结论。
+
+    `measure(device)` 自己读一次并按判据结论记一步;`step` / `expect` 的 `passed`
+    必须由调用方给出实际求值结果。`record()` 自动收集参与方、role 与读数键,
+    写出的 JSON 与直接调用 `record_scenario` 完全相同。
+
+    它同时代理 `ScenarioCleanup`:现有用例里的 `scenario.on_cleanup(...)` 与
+    `record_scenario(..., cleanups=scenario)` 不用改。
+    """
+
+    def __init__(self, composition_root, *, identity, name: str, resolve) -> None:
+        self._root = composition_root
+        self._identity = identity
+        self._name = name
+        self._resolve = resolve
+        self._cleanup = ScenarioCleanup()
+        self._steps: list[ScenarioStep] = []
+        self._used: dict[str, Any] = {}
+        self._reading_keys: dict[str, tuple[str, ...]] = {}
+        self._recorded = False
+
+    @property
+    def recorded(self) -> bool:
+        return self._recorded
+
+    @property
+    def ran(self) -> bool:
+        return self._cleanup.ran
+
+    def on_cleanup(self, action: Callable[[], Any], *, label: str = "") -> None:
+        self._cleanup.on_cleanup(action, label=label)
+
+    def run(self) -> list[dict]:
+        return self._cleanup.run()
+
+    def device(self, device_id: str) -> Any:
+        driver = self._resolve(device_id)
+        self._used[device_id] = driver
+        return driver
+
+    def _id_of(self, device: Any) -> str:
+        for holder in (getattr(device, "device", None), device):
+            device_id = getattr(holder, "id", None)
+            if isinstance(device_id, str):
+                return device_id
+        raise ValueError(f"认不出这是哪台设备:{device!r}(需要 driver 或带 id 的聚合根)")
+
+    def step(
+        self,
+        device: Any,
+        action: str,
+        result: Any = None,
+        *,
+        passed: bool | None = None,
+        detail: Mapping[str, Any] | None = None,
+    ) -> ScenarioStep:
+        """记一步。`passed` 没给时,只接受 bool 或带 `.passed` 的求值结果。"""
+        device_id = self._id_of(device)
+        self._used.setdefault(device_id, device)
+        if passed is None:
+            if isinstance(result, bool):
+                passed = result
+            elif hasattr(result, "passed"):
+                passed = bool(result.passed)
+            else:
+                raise ValueError(
+                    f"场景步骤 {action!r} 需要一个可判定的 passed:"
+                    "结果没有 .passed,就显式传 passed=..."
+                )
+        recorded = ScenarioStep(device_id, action, passed, dict(detail or {}))
+        self._steps.append(recorded)
+        return recorded
+
+    def measure(self, device: Any, action: str = "按点表读全部读数键并由判据集求值") -> Any:
+        """读一次,把判据结论记成一步,返回这次读数。"""
+        reading = device.read_all()
+        self.step(
+            device,
+            action,
+            passed=reading.passed,
+            detail={
+                "readings": dict(reading.readings),
+                "breaches": [breach.describe() for breach in reading.breaches],
+            },
+        )
+        self._reading_keys[self._id_of(device)] = tuple(reading.readings)
+        return reading
+
+    def expect(
+        self, passed: bool, *, device: Any, action: str, detail: Mapping[str, Any] | None = None
+    ) -> ScenarioStep:
+        """跨设备派生量用这一步;passed 由公式算出来,不写常量。"""
+        return self.step(device, action, passed=passed, detail=detail)
+
+    def settle(self, seconds: float, reason: str = "") -> ScenarioStep:
+        recorded = settle(seconds, reason)
+        self._steps.append(recorded)
+        return recorded
+
+    def record(self) -> Path | None:
+        if not self._steps:
+            raise ValueError(
+                "场景还没有任何步骤:至少调用 measure/step/expect 一次;"
+                "空步骤会被算成 passed,那是这个平台上最危险的假通过"
+            )
+        participants = {device_id: self._root.role_of(device_id) for device_id in self._used}
+        self._root.record_evidence(identity=self._identity)
+        path = record_scenario(
+            self._root.evidence,
+            name=self._name,
+            participants=participants,
+            reading_keys={
+                device_id: keys
+                for device_id, keys in self._reading_keys.items()
+                if device_id in participants
+            },
+            steps=self._steps,
+            identity=self._identity,
+            cleanups=self._cleanup,
+        )
+        self._recorded = True
+        return path
+
+
 def verdict_of(steps: Iterable[ScenarioStep], participants: Mapping[str, str]) -> str:
     """场景结论:不成立的那一步落在谁身上,决定是"设备不合格"还是"测试无效"。
 

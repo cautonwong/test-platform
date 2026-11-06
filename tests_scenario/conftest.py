@@ -10,8 +10,9 @@ import pytest
 
 from testplatform.cases import case_of
 from testplatform.reporting.injection import inject as inject_point
-from testplatform.reporting.scenario import ScenarioCleanup, record_interrupted_scenario
+from testplatform.reporting.scenario import ScenarioRecorder, record_interrupted_scenario
 
+from tests_support.named_device import device_or_skip
 from tests_support.support_faults import connect_support_or_skip, restore_support_or_invalid
 
 
@@ -73,26 +74,34 @@ def inject(composition_root, request):
 
 @pytest.fixture()
 def scenario(composition_root, request):
-    """这条场景的收尾登记口:
+    """这条场景的门面与收尾登记口。
 
-        scenario.on_cleanup(lambda: meter.write("有功计量模式", 0))
+        grid = scenario.device("grid_sim_01")
+        scenario.step(grid, "设定 50Hz", passed=...)
+        measured = scenario.measure(inverter)
+        scenario.record()
 
-    正常路径由 record_scenario(..., cleanups=scenario) 执行,结果进 scenario-*.json 的
-    cleanup 字段;用例抛异常时走到这里 —— 收尾照旧执行,结果落进同一份文件,
+    旧写法 `scenario.on_cleanup(...)` + `record_scenario(..., cleanups=scenario)` 仍然可用:
+    门面代理 ScenarioCleanup。用例抛异常时走到这里 —— 收尾照旧执行,结果落进同一份文件,
     结论记 invalid("用例在写出步骤之前就中断了"),不是设备不合格。
     """
-    cleanups = ScenarioCleanup()
-    yield cleanups
+    recorder = ScenarioRecorder(
+        composition_root,
+        identity=case_of(request.node),
+        name=request.node.name,
+        resolve=lambda device_id: device_or_skip(composition_root, device_id),
+    )
+    yield recorder
 
     if _outcome_of(request.node) == "skipped":
         # 跳过不是"崩了":不留场景记录。留一条 invalid 会把归因顶行从 clean 翻成
         # invalid,于是一轮全绿的跑动被报成"有测试无效"(客户清单少一台设备就会踩)。
         return
-    if cleanups.ran:
+    if recorder.recorded or recorder.ran:
         return
     record_interrupted_scenario(
         composition_root.evidence,
         name=request.node.name,
         identity=case_of(request.node),
-        cleanups=cleanups,
+        cleanups=recorder,
     )

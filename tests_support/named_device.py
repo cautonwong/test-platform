@@ -22,7 +22,7 @@ def device_or_skip(composition_root, device_id: str):
     try:
         return composition_root.get(device_id)
     except KeyError:
-        pytest.skip(f"{device_id} 不在这份清单里,{_configured_devices(composition_root)}")
+        pytest.skip(f"不在这份清单里: {device_id},{_configured_devices(composition_root)}")
 
 
 def _configured_devices(composition_root) -> str:
