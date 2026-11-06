@@ -86,6 +86,10 @@ def installed(tmp_path_factory):
     # 平台必须来自那个 wheel,`__editable__*.pth` 正是 09f 被坑的那种污染源。
     skip_prefixes = ("testplatform", "__editable__", "pip", "setuptools", "_distutils_", "pkg_resources")
     for source_site in map(Path, _site.getsitepackages()):
+        if not source_site.is_dir():
+            # Debian 的 local/lib/.../dist-packages 可能只存在于 site 配置里;
+            # 不存在的目录没有依赖可抄,跳过而不是让整条用例 setup error。
+            continue
         for entry in source_site.iterdir():
             name = entry.name
             if name.startswith(skip_prefixes) or name.endswith((".pth", ".egg-link")):

@@ -15,7 +15,7 @@
 
 1. **一人一个 worktree**(`E:/workspace/worktrees/<slug>`),一个目录只有一个写者。
 2. **开工前 send 一行声明**:票号 + worktree + 分支 + 基于哪个 commit + 预计触碰路径 + 明确不碰什么。leader 据此判是否同文件重叠。
-3. **同文件重叠就不并行**:让其中一个先做、另一个押后。已经撞过的三次:插件收集期钩子、`execution/task.py`、`configs/devices.yaml`。
+3. **同文件重叠就不并行**:让其中一个先做、另一个押后。已经撞过的三次:插件收集期钩子、`execution/task/runtime.py`、`configs/devices.yaml`。
 4. **不删别人的 worktree**。删的条件三条全绿:代码已合入 master + 该 worker 真的停了(以 run 状态为准,不是它最后一次 send)+ 目录里没有别的 run。
 5. **不在别人正在写的目录跑测试**;怀疑工作树状态被污染时用 `git archive <sha> | tar -x` 到临时目录复核。
 6. **交付必须 commit**;合入由 leader 做。

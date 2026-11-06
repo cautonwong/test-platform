@@ -514,3 +514,15 @@ def test_verify_catches_a_tampered_waiver(tmp_path):
     # ③ 豁免不许被当成缺口来比:它的差异行必须叫 waived,不是 gaps
     lines = assets.verify(_build(tree), out)
     assert all("waived:" in line for line in lines if "C-2" in line), lines
+
+
+def test_scan_cases_raises_on_a_syntax_error_instead_of_dropping_the_file(tmp_path):
+    (tmp_path / "test_bad.py").write_text("def broken(:\n    pass\n", encoding="utf-8")
+
+    with pytest.raises(assets.CaseScanError, match="test_bad.py"):
+        assets.scan_cases([tmp_path], base=tmp_path)
+
+
+def test_scan_cases_rejects_a_missing_test_root(tmp_path):
+    with pytest.raises(assets.CaseScanError, match="不存在"):
+        assets.scan_cases([tmp_path / "missing"], base=tmp_path)

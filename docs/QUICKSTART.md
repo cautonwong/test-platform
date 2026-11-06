@@ -55,10 +55,10 @@ pip install -e .
 ```bash
 testplatform scaffold case --out my-tests
 cd my-tests
-testplatform-run-task tasks/case_sample.yaml --root . --evidence-dir reports
+testplatform run tasks/case_sample.yaml --root . --evidence-dir reports
 echo "退出码=$?"          # 期望 0
-testplatform-run-task --help >/dev/null && echo ok
-python -m testplatform.execution.gate reports
+testplatform run --help >/dev/null && echo ok
+testplatform gate reports
 echo "gate 退出码=$?"     # 期望 6 —— 见下面的说明
 ```
 
@@ -148,9 +148,11 @@ select: model:meter_m     # 选择器:model: / capability: / tag: / case:(多个
 ## 6. 跑它,然后读报告
 
 ```bash
-python tools/run_task.py tasks/my-first.yaml --root . --evidence-dir reports/my-first
+testplatform run tasks/my-first.yaml --root . --evidence-dir reports/my-first
 echo "退出码=$?"
 ```
+
+源码布局里同一件事是 `python tools/run_task.py ...`;两个入口是同一个 main。
 
 **退出码就是结论**,不是 pytest 的结果:
 
@@ -174,9 +176,11 @@ echo "退出码=$?"
 ## 7. 接进 CI
 
 ```bash
-python tools/gate.py reports
+testplatform gate reports
 echo "gate 退出码=$?"     # 0 合格 / 1 不合格 / 2 无效 / 3 未完成 / 4 平台错误 / 5 没跑过 / 6 没有验收任务
 ```
+
+源码布局里同一件事是 `python tools/gate.py reports`。
 
 `gate` 只读 `reports/*/summary.json`,不改报告。工作流样例见 `.github/workflows/tasks.yml`。
 

@@ -3,7 +3,7 @@
 翻译成一个真正可用的 driver 对象"的地方。
 
 它只做五件事:
-    1. 读配置并校验三段式清单(委托给 config/loader.py + config/manifest.py)
+    1. 读配置并校验三段式清单(委托给 config/loader.py + config/manifest/parsing.py)
     2. 把型号引用的具名判据集 + 该设备的行内覆盖,合并成判据值对象
     3. 按 access + mode 查 transport 注册表,造出 transport
     4. 按型号上的 (设备类型, 规约) 查 driver 注册表,造出 driver(driver 内部顺带创建聚合根)

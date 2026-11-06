@@ -42,6 +42,7 @@ SURFACE = ("execution", "reporting", "config")
 NOT_EVIDENCE = {
     "catalog": "清单结构缺口(kind / where / detail):说的是清单自己缺什么,不是一轮测试的证据",
     "_data": "示例产品(package 内那份):产品侧自报的报文记录,不是平台的证据层",
+    "cli.py": "命令行 `tasks --json` 的列表输出:kind 是任务种类,不是证据记录",
 }
 # 文档那张表说的是 `<设备id>.jsonl` 的记录,它由 evidence.py 发 —— 所以字段逐一对账只在
 # 这个文件里做。别处的同名 kind(如 attribution 的 link_lost)是另一份文件里的投影。
@@ -52,8 +53,8 @@ DOC_HEADING = "## 证据目录长什么样"
 NAMED = {
     ("config/paths.py", "sources"): "«layout»",
     ("execution/death.py", "attempt_exit"): "«abandoned_product»",
-    ("execution/task.py", "_environment"): "«env»",
-    ("reporting/attribution.py", "as_record"): "«attribution.json»",
+    ("execution/task/runtime.py", "_environment"): "«env»",
+    ("reporting/attribution/core.py", "as_record"): "«attribution.json»",
     ("reporting/evidence.py", "record"): "«每条记录外层»",
     ("reporting/scenario.py", "_record_of"): "«scenario-*.json»",
 }
@@ -91,90 +92,90 @@ EMISSIONS: tuple[Point, ...] = (
     ),
     Point("execution/death.py::unexecuted_event", "unexecuted", "kind count reason"),
     Point(
-        "execution/task.py::run_task",
+        "execution/task/runtime.py::run_task",
         ECHO,
         "task kind product devices select product_port port_source port_range port_attempts"
         " slave_ports slave_addresses slaves launch readiness layout pytest_exit_code"
         " product_exit_code error started_at runtime env process_events",
     ),
     Point(
-        "execution/task.py::run_task",
+        "execution/task/runtime.py::run_task",
         "port_retry",
         "kind attempt reason port at",
         {"reason": ("端口他人不可用", "产品 stderr 自报 bind 失败")},
     ),
-    Point("execution/task.py::_restart_product", "product_restart", "kind at reason"),
+    Point("execution/task/runtime.py::_restart_product", "product_restart", "kind at reason"),
     Point(
-        "execution/task.py::_environment",
+        "execution/task/runtime.py::_environment",
         "«env»",
         "commit platform_version product_sha256 simulator_version"
         " platform_source platform_sha256",
     ),
     Point(
-        "reporting/attribution.py::as_record",
+        "reporting/attribution/core.py::as_record",
         "«attribution.json»",
         "verdict note scope ran round_status device_failures invalid_tests platform_errors"
         " evidence_corrupt unrecognized unevidenced_failures no_conclusion"
         " out_of_scope_devices not_run_devices device_scope",
     ),
     Point(
-        "reporting/attribution.py::attribute",
+        "reporting/attribution/core.py::attribute",
         "no_readings",
         "kind device case_nodeids executed_nodeids ref reason",
     ),
-    Point("reporting/attribution.py::_read_device_file", "no_verdict", "kind device case ref reason"),
+    Point("reporting/attribution/core.py::_read_device_file", "no_verdict", "kind device case ref reason"),
     Point(
-        "reporting/attribution.py::_read_device_file",
+        "reporting/attribution/core.py::_read_device_file",
         "link_lost",
         "kind device operation failure message at ref",
     ),
     Point(
-        "reporting/attribution.py::_read_device_file",
+        "reporting/attribution/core.py::_read_device_file",
         "manual_step",
         "kind device case action expect confirmed executed_steps ref",
     ),
     Point(
-        "reporting/attribution.py::_read_device_file",
+        "reporting/attribution/core.py::_read_device_file",
         "evidence_gap",
         "kind device missing window reason ref",
     ),
     Point(
-        "reporting/attribution.py::_read_device_file",
+        "reporting/attribution/core.py::_read_device_file",
         "step_failed",
         "kind device case quantity value expected text ref",
     ),
-    Point("reporting/attribution.py::_read_device_file", ECHO, "kind device ref"),
+    Point("reporting/attribution/core.py::_read_device_file", ECHO, "kind device ref"),
     Point(
-        "reporting/attribution.py::_criterion_failure",
+        "reporting/attribution/core.py::_criterion_failure",
         "equals",
         "kind device case quantity value expected text ref",
     ),
     Point(
-        "reporting/attribution.py::_criterion_failure",
+        "reporting/attribution/core.py::_criterion_failure",
         "criterion",
         "kind device case quantity value limit exceeded_by text ref",
     ),
     Point(
-        "reporting/attribution.py::_read_scenarios",
+        "reporting/attribution/core.py::_read_scenarios",
         "scenario_invalid",
         "kind scenario case failed_steps ref",
     ),
     Point(
-        "reporting/attribution.py::_read_scenarios",
+        "reporting/attribution/core.py::_read_scenarios",
         "scenario_step",
         "kind device action detail case ref",
     ),
-    Point("reporting/attribution.py::_read_round_status", "no_round_status", "kind ref reason"),
-    Point("reporting/attribution.py::_read_scope", "scope_missing", "kind ref reason"),
-    Point("reporting/attribution.py::_read_scope", "deselected", "kind case nodeid reason ref"),
+    Point("reporting/attribution/core.py::_read_round_status", "no_round_status", "kind ref reason"),
+    Point("reporting/attribution/core.py::_read_scope", "scope_missing", "kind ref reason"),
+    Point("reporting/attribution/core.py::_read_scope", "deselected", "kind case nodeid reason ref"),
     Point(
-        "reporting/attribution.py::_read_scope",
+        "reporting/attribution/core.py::_read_scope",
         "skipped_case",
         "kind case nodeid operation message ref",
     ),
-    Point("reporting/attribution.py::_read_scope", "skipped", "kind case nodeid reason cause ref"),
-    Point("reporting/attribution.py::_read_scope", "not_run", "kind count items reason ref"),
-    Point("reporting/attribution.py::_unevidenced_failures", ECHO, "kind nodeid case reason ref"),
+    Point("reporting/attribution/core.py::_read_scope", "skipped", "kind case nodeid reason cause ref"),
+    Point("reporting/attribution/core.py::_read_scope", "not_run", "kind count items reason ref"),
+    Point("reporting/attribution/core.py::_unevidenced_failures", ECHO, "kind nodeid case reason ref"),
     Point("reporting/evidence.py::record", "«每条记录外层»", "at device **"),
     Point(
         "reporting/evidence.py::record_injection",
@@ -299,8 +300,8 @@ TASK_DOC_FIELDS = (
 # 文档 `process_events` 那段 json 示例:kind → 发这条记录的发射点。
 PROCESS_EVENT_KINDS = {
     "product_exit": ("execution/death.py::exit_event", "product_exit"),
-    "port_retry": ("execution/task.py::run_task", "port_retry"),
-    "product_restart": ("execution/task.py::_restart_product", "product_restart"),
+    "port_retry": ("execution/task/runtime.py::run_task", "port_retry"),
+    "product_restart": ("execution/task/runtime.py::_restart_product", "product_restart"),
     "unexecuted": ("execution/death.py::unexecuted_event", "unexecuted"),
 }
 
@@ -320,33 +321,33 @@ DOCUMENTED = {
     # reading 的「求值结论」
     (f"{JSONL_FILE}::_breach_of", "equals"),
     # 文档列了 attribution.json 与它那四类 + 没结论一档,条目就是那几类的载荷
-    ("reporting/attribution.py::as_record", "«attribution.json»"),
-    ("reporting/attribution.py::attribute", "no_readings"),
-    ("reporting/attribution.py::_read_device_file", "no_verdict"),
-    ("reporting/attribution.py::_read_device_file", "link_lost"),
-    ("reporting/attribution.py::_read_device_file", "manual_step"),
-    ("reporting/attribution.py::_read_device_file", "evidence_gap"),
-    ("reporting/attribution.py::_read_device_file", "step_failed"),
-    ("reporting/attribution.py::_read_device_file", ECHO),
-    ("reporting/attribution.py::_criterion_failure", "equals"),
-    ("reporting/attribution.py::_criterion_failure", "criterion"),
-    ("reporting/attribution.py::_read_scenarios", "scenario_invalid"),
-    ("reporting/attribution.py::_read_scenarios", "scenario_step"),
-    ("reporting/attribution.py::_read_round_status", "no_round_status"),
-    ("reporting/attribution.py::_read_scope", "scope_missing"),
-    ("reporting/attribution.py::_read_scope", "deselected"),
-    ("reporting/attribution.py::_read_scope", "skipped_case"),
-    ("reporting/attribution.py::_read_scope", "skipped"),
-    ("reporting/attribution.py::_read_scope", "not_run"),
-    ("reporting/attribution.py::_unevidenced_failures", ECHO),
+    ("reporting/attribution/core.py::as_record", "«attribution.json»"),
+    ("reporting/attribution/core.py::attribute", "no_readings"),
+    ("reporting/attribution/core.py::_read_device_file", "no_verdict"),
+    ("reporting/attribution/core.py::_read_device_file", "link_lost"),
+    ("reporting/attribution/core.py::_read_device_file", "manual_step"),
+    ("reporting/attribution/core.py::_read_device_file", "evidence_gap"),
+    ("reporting/attribution/core.py::_read_device_file", "step_failed"),
+    ("reporting/attribution/core.py::_read_device_file", ECHO),
+    ("reporting/attribution/core.py::_criterion_failure", "equals"),
+    ("reporting/attribution/core.py::_criterion_failure", "criterion"),
+    ("reporting/attribution/core.py::_read_scenarios", "scenario_invalid"),
+    ("reporting/attribution/core.py::_read_scenarios", "scenario_step"),
+    ("reporting/attribution/core.py::_read_round_status", "no_round_status"),
+    ("reporting/attribution/core.py::_read_scope", "scope_missing"),
+    ("reporting/attribution/core.py::_read_scope", "deselected"),
+    ("reporting/attribution/core.py::_read_scope", "skipped_case"),
+    ("reporting/attribution/core.py::_read_scope", "skipped"),
+    ("reporting/attribution/core.py::_read_scope", "not_run"),
+    ("reporting/attribution/core.py::_unevidenced_failures", ECHO),
     # 文档列了 scenario-<用例名>.json 与它装的东西(参与方 / 读数键 / 每步结果 / 场景结论)
     ("reporting/scenario.py::_record_of", "«scenario-*.json»"),
     # 文档的 `task.json` 一节(128715b 补的):这一节写的字段由
     # test_task_json_section_names_emitted_fields / test_process_event_examples_match_the_source 逐条对账
-    ("execution/task.py::run_task", ECHO),
-    ("execution/task.py::run_task", "port_retry"),
-    ("execution/task.py::_restart_product", "product_restart"),
-    ("execution/task.py::_environment", "«env»"),
+    ("execution/task/runtime.py::run_task", ECHO),
+    ("execution/task/runtime.py::run_task", "port_retry"),
+    ("execution/task/runtime.py::_restart_product", "product_restart"),
+    ("execution/task/runtime.py::_environment", "«env»"),
     ("config/paths.py::sources", "«layout»"),
     ("execution/death.py::exit_event", "product_exit"),
     ("execution/death.py::unexecuted_event", "unexecuted"),
@@ -412,7 +413,7 @@ DOC_GAPS = {
         " disconnect,`bad_crc` 从不发射 —— 用户照文档 grep bad_crc 永远 grep 不到"
     ),
     ("reading", "mode"): (
-        "文档说 mode 只有 real / simulator;代码不校验这个值(config/manifest.py 只按它分支、"
+        "文档说 mode 只有 real / simulator;代码不校验这个值(config/manifest/parsing.py 只按它分支、"
         "不报错),清单里写错一个字母会原样落进证据 —— 要么代码补校验,要么文档别说死"
     ),
 }
@@ -806,7 +807,7 @@ def test_task_json_section_names_emitted_fields():
         f"task.json 一节的字段表变了:文档 {named},冻结 {TASK_DOC_FIELDS}"
         "(改了文档就要同步这里,否则新字段没人验)"
     )
-    keys = BY_POINT[("execution/task.py::run_task", ECHO)].keys()
+    keys = BY_POINT[("execution/task/runtime.py::run_task", ECHO)].keys()
     missing = [name for name in named if name not in keys]
     assert not missing, (
         f"文档点名了 task.json 里没有的字段: {missing};"

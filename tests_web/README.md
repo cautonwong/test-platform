@@ -24,6 +24,14 @@ EDGEC_WEB_DIR=/path/to/EdgeC/web .venv/bin/python -m pytest tests_web -q
 | `EDGEC_WEB_DIR` | `/tmp/edgec-webui/web` | EdgeC 的 `web/` 目录（需要 `products/*/src/generated/registry.json`） |
 | `WEBUI_EVIDENCE_DIR` | `evidence/webui-e2e` | 证据输出目录 |
 
+## 顺序隔离
+
+这一套共享一个 mock-server 进程。一条用例改了告警、角色、用户或配置事务之后，下一条看到的就不是初始状态；随机顺序会红，单跑却是绿的。
+
+`tests_web/conftest.py` 在每条用例开跑前调用 `POST /__test/reset`，把 mock-server 的内存恢复成启动快照。这个入口在 EdgeC 的 `web/mock-server/server.mjs` 里，路径不在 `/api/` 下，不进匿名 allowlist，也不改对外 API。
+
+所以跑这一套前，EdgeC 的 web 工作区必须包含这个入口；缺了会直接报「缺少 `/__test/reset`」，不会静默退化成顺序相关。
+
 ## 为什么不在默认 `testpaths` 里
 
 `pyproject.toml` 的 `testpaths` 是"不需要外部被测物就能跑"的集合。这一套需要先起 EdgeC 的

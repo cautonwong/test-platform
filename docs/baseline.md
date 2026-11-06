@@ -46,7 +46,7 @@
 
 ## 挂起项
 
-**49-C:拆 `src/testplatform/reporting/attribution.py`(1,239 行)与 `config/manifest.py`(1,340 行)**。只搬代码不改行为,要单独一轮、diff 全是 rename 才审得动。未开工。
+**49-C:拆 `src/testplatform/reporting/attribution.py`、`config/manifest.py` 与 `execution/task.py`**。已完成(2026-11-06):三者都改成包,旧路径的公开名字由 `__init__.py` 重导出,调用方不改;审查修复后全量 1308 passed / 17 skipped / 94.81% 覆盖,EdgeC 验收与 WebUI 23/23 通过。
 
 ## deltas(不重跑也能看出变了什么)
 

@@ -4,6 +4,7 @@
   - product_ok:用例通过，且证据里记录了服务端实际返回的关键字段
   - product_fail:断言失败（pytest 会先红，这里只做归档）
 缺证据文件 = evidence_broken，不能当成通过。
+0 条证据同样不能当成通过：那说明一条用例都没跑（通常是被 skip）。
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-EVIDENCE_DIR = Path(sys.argv[1] if len(sys.argv) > 1 else "reports/webui-e2e")
+EVIDENCE_DIR = Path(sys.argv[1] if len(sys.argv) > 1 else "evidence/webui-e2e")
 SUMMARY = EVIDENCE_DIR / "summary.json"
 
 
@@ -49,9 +50,13 @@ def main() -> int:
         ],
     }
     SUMMARY.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    if summary["total"] == 0:
+        # 0 条证据不是"全部通过":它只证明这套用例一条都没跑(通常是被 skip 了)
+        print("0 条证据 = 未完成:没跑过不等于通过")
     print(f"{summary['product_ok']}/{summary['total']} product_ok, evidence_broken={len(broken)}")
     print(f"→ {SUMMARY}")
-    return 0 if summary["product_fail"] == 0 and not broken else 1
+    ok = summary["total"] > 0 and summary["product_fail"] == 0 and not broken
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

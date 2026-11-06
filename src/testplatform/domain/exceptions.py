@@ -14,3 +14,11 @@ class DeviceFaultError(RuntimeError):
 
 class InvariantViolation(ValueError):
     """任何聚合根内部不变量被违反时抛出(数值超出合理范围、状态流转非法等)。"""
+
+
+class NoVerdictError(TypeError):
+    """这次读数没有判据结论(例如终端只记录读数)。
+
+    这是调用方拿错了对象,不是平台 bug:所以不继承 InvariantViolation,
+    否则 pytest 层会把它归成"平台错误"。
+    """

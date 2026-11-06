@@ -77,7 +77,7 @@ def test_the_sample_acceptance_task_qualifies_with_one_device_and_one_scenario(t
     # 端口进了实际命令行:这是"产品从平台分配的端口起来"的唯一证据
     assert str(record["product_port"]) in record["launch"]
     # TODO(票 14):合入后补三条实断言 —— `port_source` / `port_range` / `port_attempts`。
-    # 14 正在改 execution/task.py(端口段接线),本票只消费字段,自己不许加;等它合入再补。
+    # 14 正在改 execution/task/runtime.py(端口段接线),本票只消费字段,自己不许加;等它合入再补。
     assert record["env"]["commit"], "env.commit 不许缺失(没有 .git 时报 unknown 也算有值)"
 
     # 读数:每设备 JSONL 里真有本轮的读数记录

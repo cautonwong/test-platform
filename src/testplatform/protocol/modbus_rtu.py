@@ -131,12 +131,14 @@ def parse_write_response(
     功能码、寄存器地址都得对上。值对不对不在这里判 —— 那是回读的事,写下去了不等于生效了。
     """
     body = _check_crc(frame)
-    if len(body) >= 3 and is_exception_response(body[1], function):
+    if len(body) < 3:
+        raise ValueError(f"应答帧太短: {frame.hex()}")
+    if body[0] != slave:
+        raise ValueError(f"应答的从站地址是 {body[0]},不是请求的 {slave}: {frame.hex()}")
+    if is_exception_response(body[1], function):
         raise SlaveExceptionResponse(body[0], function, body[2])
     if len(body) != 6:
         raise ValueError(f"写单个寄存器应答必须是 8 字节,收到 {len(frame)}: {frame.hex()}")
-    if body[0] != slave:
-        raise ValueError(f"应答的从站地址是 {body[0]},不是请求的 {slave}: {frame.hex()}")
     if body[1] != function:
         raise ValueError(f"应答的功能码是 {body[1]:#04x},不是请求的 {function:#04x}: {frame.hex()}")
     echoed = int.from_bytes(body[2:4], "big")
@@ -232,12 +234,14 @@ def parse_write_multiple_response(
     与 0x06 同一个口径:值有没有生效由回读判,这里只管"回的确实是这次写"。
     """
     body = _check_crc(frame)
-    if len(body) >= 3 and is_exception_response(body[1], function):
+    if len(body) < 3:
+        raise ValueError(f"应答帧太短: {frame.hex()}")
+    if body[0] != slave:
+        raise ValueError(f"应答的从站地址是 {body[0]},不是请求的 {slave}: {frame.hex()}")
+    if is_exception_response(body[1], function):
         raise SlaveExceptionResponse(body[0], function, body[2])
     if len(body) != 6:
         raise ValueError(f"写多个寄存器应答必须是 8 字节,收到 {len(frame)}: {frame.hex()}")
-    if body[0] != slave:
-        raise ValueError(f"应答的从站地址是 {body[0]},不是请求的 {slave}: {frame.hex()}")
     if body[1] != function:
         raise ValueError(f"应答的功能码是 {body[1]:#04x},不是请求的 {function:#04x}: {frame.hex()}")
     echoed_address = int.from_bytes(body[2:4], "big")
@@ -287,10 +291,10 @@ def parse_read_response(
     body = _check_crc(frame)
     if len(body) < 3:
         raise ValueError(f"应答帧太短: {frame.hex()}")
-    if is_exception_response(body[1], function):
-        raise SlaveExceptionResponse(body[0], function, body[2])
     if body[0] != slave:
         raise ValueError(f"应答的从站地址是 {body[0]},不是请求的 {slave}: {frame.hex()}")
+    if is_exception_response(body[1], function):
+        raise SlaveExceptionResponse(body[0], function, body[2])
     if body[1] != function:
         raise ValueError(f"应答的功能码是 {body[1]:#04x},不是请求的 {function:#04x}: {frame.hex()}")
     payload = body[3:]

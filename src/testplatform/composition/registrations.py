@@ -17,6 +17,12 @@
 """
 from __future__ import annotations
 
+import importlib.metadata
+
+# 第三方项目用 entry point 把自己的驱动 / 传输装进来。内置实现不靠 entry point:
+# 它们是平台自己发布的模块,写在下面的 import 清单里更直接。
+PLUGIN_GROUPS = ("testplatform.drivers", "testplatform.transports")
+
 # --- 触发注册:这是平台"认识所有具体类型"的唯一位置 ---
 # 传输层:真实链路 + 进程内模拟器 + 经网关转发。import 它们 = 让 @register_transport 跑一遍。
 from testplatform.transport import gateway_transport  # noqa: F401
@@ -31,3 +37,23 @@ from testplatform.drivers import meter_driver  # noqa: F401
 # 族 B：DUT 当 DL/T 698.45 从站，平台当主站读属性（帧向量见 EdgeC docs 附录 H）
 from testplatform.drivers import dlt698_master_driver  # noqa: F401
 from testplatform.drivers import terminal_driver  # noqa: F401
+
+
+def load_plugins() -> None:
+    """导入已安装的第三方插件;导入失败直接报错,不静默跳过。
+
+    "装了但没生效"比"没装"更难查:现场会以为插件在跑,实际注册表里没有它。
+    插件模块只应 import `drivers.registry` / `transport.registry` 里的装饰器,
+    不要 import 本模块(此时它还没执行完)。
+    """
+    for group in PLUGIN_GROUPS:
+        for entry in importlib.metadata.entry_points(group=group):
+            try:
+                entry.load()
+            except Exception as exc:  # noqa: BLE001 - 插件边界:任何导入错误都要带上插件名
+                raise RuntimeError(
+                    f"插件 {entry.name!r}({entry.value}) 导入失败: {exc}"
+                ) from exc
+
+
+load_plugins()

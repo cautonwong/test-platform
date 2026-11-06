@@ -145,14 +145,22 @@ def _python_files(roots: Iterable[str | Path]) -> list[Path]:
             files.append(root)
         elif root.is_dir():
             files.extend(sorted(root.rglob("*.py")))
+        else:
+            raise CaseScanError(f"测试路径不存在或不是 Python 文件/目录: {root}")
     return [path for path in files if "__pycache__" not in path.parts]
+
+
+class CaseScanError(ValueError):
+    """一个测试文件读不了或语法错误:目录不能把它当成"没有用例"。"""
 
 
 def _cases_in(path: Path, base: Path) -> list[CaseEntry]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, SyntaxError):
-        return []
+    except SyntaxError as exc:
+        raise CaseScanError(f"{path}:{exc.lineno}: {exc.msg}") from exc
+    except OSError as exc:
+        raise CaseScanError(f"{path}: 读不了: {exc}") from exc
     constants = _module_string_constants(tree)
     # 一律 POSIX 分隔符:目录是入库产物。Windows 上生成的 `tests/x.py` 若写成反斜杠,Linux CI 重新
     # 扫出来的是正斜杠,`--verify` 会判成“变了”(跨平台假红)。指纹口径先统一,不放宽校验。

@@ -16,7 +16,7 @@
     ④ 合格     命中 > 0 条,两栏 100%,申报外未测 0 条
 命中 0 条不算合格:一条都没选中时两栏都是 0/0,"100%" 是空分母造出来的绿。
 设备级 0/0 还有第二种来路:这一轮一台设备都没验(只跑了场景用例)。它有两种读法,分叉靠任务的 kind
-(见 execution/task.py):
+(见 execution/task/runtime.py):
     kind: acceptance(缺省)  没验到设备就不算验过 → ④ 不成立,落③,reason=no_device_coverage
     kind: smoke             验的是通路不是设备 → 允许 ④,但首行必须写成「合格(冒烟:本轮未验设备)」
 冒烟只是把首行写清楚,不是把设备那一栏的缺口涂绿。
@@ -30,8 +30,8 @@ reason=platform_error,门禁据此指向平台,而不是产品。
 任务结论取两栏最差:一栏没满,任务就算没合格。
 
 未测分两栏,理由不许自由发挥:
-    申报内(灰)  理由只在四类里:平台不支持 / 设备缺能力 / 人工步骤 / 已知缺陷跳过。
-                用例作者写下的 skip 理由按这几类的写法识别;识别不出来的一律算申报外 ——
+    申报内(灰)  理由必须以四类名开头:平台不支持 / 设备缺能力 / 人工步骤 / 已知缺陷跳过。
+                用例作者写下的 skip 理由按这四类的开头识别;识别不出来的一律算申报外 ——
                 一句"因为所以"就能把未测涂成灰色的地方,和合格只差一次眨眼。
     申报外(红)  没跑到 / 被平台叫停未执行 / 失败但没落证据 / 理由不在四类里。
                 有任意一条,结论就不能是合格。
@@ -56,11 +56,11 @@ from testplatform.reporting.attribution import (
     Attribution,
     attribute,
 )
-from testplatform.reporting.evidence import ROUND_STATUS_FILE
+from testplatform.reporting.evidence import ROUND_STATUS_FILE, json_safe
 
 REPORT_FILE = "report.md"
 SUMMARY_FILE = "summary.json"
-# 执行器写的那一份任务事实(见 execution/task.py)。报告只读它,所以这里不复用那里的常量:
+# 执行器写的那一份任务事实(见 execution/task/runtime.py)。报告只读它,所以这里不复用那里的常量:
 # reporting/ 认识 execution/ 会变成双向依赖。
 TASK_FILE = "task.json"
 
@@ -70,7 +70,7 @@ SCENARIO_CASE_PREFIX = "S_"
 # 死因的 how 字面量(wire 契约,见 execution/death.py):产品自己退出 = 产品不合格。
 SELF_EXIT = "self_exit"
 
-# 任务的 kind 字面量(wire 契约,见 execution/task.py 的 task.json):不写就是 acceptance。
+# 任务的 kind 字面量(wire 契约,见 execution/task/runtime.py 的 task.json):不写就是 acceptance。
 KIND_ACCEPTANCE = "acceptance"
 KIND_SMOKE = "smoke"
 
@@ -330,7 +330,11 @@ def write_report(directory: str | Path) -> Path:
     path = directory / REPORT_FILE
     path.write_text("\n".join(render(report, load_clauses())) + "\n", encoding="utf-8")
     (directory / SUMMARY_FILE).write_text(
-        json.dumps(report.as_record(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(
+            json_safe(report.as_record()), ensure_ascii=False, indent=2, allow_nan=False
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return path
 
@@ -465,9 +469,16 @@ def _readings_were_not_in_the_deal(entry: dict, executed: set, failed_nodeids: s
 
 
 def _declared_reason(written: str) -> str | None:
-    """这条 skip 的理由落在申报四类的哪一类;认不出来 = 申报外(None)。"""
+    """这条 skip 的理由是否以申报四类之一开头;认不出来 = 申报外(None)。
+
+    只认开头,不认子串:``不是已知缺陷`` 里也有「已知缺陷」,按子串会把一条
+    被拒的跳过涂成灰色。
+    """
+    text = written.strip()
+    if text.startswith("Skipped: "):
+        text = text[len("Skipped: ") :].lstrip()
     for marker, category in _SKIP_MARKERS:
-        if marker in written:
+        if text.startswith(marker):
             return category
     return None
 

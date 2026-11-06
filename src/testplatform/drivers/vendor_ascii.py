@@ -13,10 +13,14 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from testplatform.config.manifest import Point
+from testplatform.config.protocols import register_protocol
 from testplatform.domain.exceptions import InvariantViolation
 from testplatform.transport.interfaces import ByteStreamTransport
 
 from .point_table_driver import ReadRaw
+
+# 文本行协议:串口 / 裸 TCP / 经网关都跑得通。声明放在驱动里,新增规约不再改中央表。
+register_protocol("vendor_ascii", access={"tcp", "serial", "gateway_ssh"})
 
 
 def vendor_ascii_reader(transport: ByteStreamTransport, command: bytes) -> ReadRaw:
@@ -32,9 +36,28 @@ def vendor_ascii_reader(transport: ByteStreamTransport, command: bytes) -> ReadR
 
 @dataclass(frozen=True)
 class RecordedReadings:
-    """一次读数的全部物理量,键就是点表的读数键(通用读取路径的 read_all 按它取数)。"""
+    """一次读数的全部物理量,键就是点表的读数键(通用读取路径的 read_all 按它取数)。
+
+    `verdict` 是聚合根记下的那条领域读数(带判据结论)。把它带回来,是为了让
+    `read_all()` 在电表、逆变器、电池上都有同一组属性:`readings` / `passed` / `breaches`。
+    以前这三个属性只有电表有,逆变器与电池要另走 `device.latest_reading` —— 同一次读数
+    两个对象,写用例的人很容易取错。
+    """
 
     readings: Mapping[str, float]
+    verdict: Any = None
+
+    @property
+    def passed(self) -> bool:
+        if self.verdict is None:
+            raise InvariantViolation("这次读数没有领域判据结论:驱动没有交回聚合根读数")
+        return bool(self.verdict.passed)
+
+    @property
+    def breaches(self) -> tuple:
+        if self.verdict is None:
+            raise InvariantViolation("这次读数没有领域判据结论:驱动没有交回聚合根读数")
+        return tuple(getattr(self.verdict, "breaches", ()))
 
 
 class PointReadings:
@@ -67,10 +90,10 @@ class PointReadings:
                 f"{self._device.id}: 点表读数键 {sorted(readings)} 与聚合根要的量 "
                 f"{sorted(self._quantities)} 不一致"
             )
-        self._device.record_reading(
+        reading = self._device.record_reading(
             **{arg: readings[key] for key, arg in self._quantities.items()}
         )
-        return RecordedReadings(dict(readings))
+        return RecordedReadings(dict(readings), verdict=reading)
 
     def __getattr__(self, name: str) -> Any:
         """state / history / rated_power_w 这些只读查询原样落到聚合根上,不再逐个转发。"""

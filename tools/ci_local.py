@@ -11,8 +11,8 @@
 三条规矩:
     * 命令只能来自 YAML,这里不重新发明任何命令
     * 每个 `uses:` step 明确打印"跳过 + 原因",并汇总到末尾(**不许静默**)
-    * 标了 `local: unsupported <原因>` 的 step 同样跳过并如实列出 —— 它表示"这条只在 CI 有意义"
-      (装依赖、传 artifact 之类),不是"本地验过了"
+    * 标了 `env.LOCAL_UNSUPPORTED` 的 step 同样跳过并如实列出 —— 它表示"这条只在 CI 有意义"
+      (装依赖、传 artifact 之类),不是"本地验过了";旧的 `local:` 写法仍兼容
 
 退出码:0 = 执行过的 step 全成功;1 = 有 step 失败(立刻停);2 = 工作流结构读不懂。
 """
@@ -222,12 +222,18 @@ def _expressions(command: str, repo: Path) -> _Rendered:
 
 
 def _local_note(entry: Mapping[str, Any]) -> str | None:
-    """`local: unsupported <原因>` = 这条只在 CI 有意义。"""
+    """`env.LOCAL_UNSUPPORTED` = 这条只在 CI 有意义;保留旧的 `local:` 写法。"""
     value = entry.get("local")
+    if not value:
+        environment = entry.get("env")
+        if isinstance(environment, Mapping):
+            value = environment.get("LOCAL_UNSUPPORTED")
     if not value:
         return None
     text = str(value).strip()
-    return text if text else "标记了 local 但没写原因"
+    if text.startswith("unsupported "):
+        text = text[len("unsupported ") :]
+    return text if text else "标记了 LOCAL_UNSUPPORTED 但没写原因"
 
 
 if __name__ == "__main__":

@@ -108,3 +108,164 @@ def test_response_length_returns_none_until_length_field_arrives():
     """头还没收全时不能瞎猜长度，否则收帧逻辑会按垃圾值去凑字节。"""
     assert dlt698.response_length(b"\x68") is None
     assert dlt698.response_length(b"\x68\x19") is None
+
+
+def test_get_response_requires_the_two_tail_bytes():
+    """尾部缺 1 或 2 字节时,最后一个数据字节会被当成时间标签,解出短读数。"""
+    good = bytes.fromhex("85 01 01 20000200 01 174367b333 00 00")
+    dlt698.parse_get_response(good)
+    for cut in (1, 2):
+        with pytest.raises(dlt698.FrameError, match="尾部|时间标签|A-XDR"):
+            dlt698.parse_get_response(good[:-cut])
+
+
+def test_get_response_does_not_flatten_an_array_into_its_first_element():
+    """数组 Data 是三相值,不是单值;把它拍平后取 [0] 会把 C 相静默成 A 相。"""
+    apdu = bytes.fromhex("85 01 01 20000200 01 01 03 12096D 12096D 12096D 00 00")
+    res = dlt698.parse_get_response(apdu)
+
+    value = res.values()[0]
+    assert value.tag == 0x01
+    assert [child.payload for child in value.children] == [bytes.fromhex("096d")] * 3
+    with pytest.raises(dlt698.FrameError, match="数组|array|标量"):
+        res.scalars()
+
+
+def test_action_response_requires_the_data_flag_and_two_tail_bytes():
+    """ACTION 响应也必须带 Data 标志 + FollowReport + 时间标签。"""
+    good = bytes.fromhex("8701050010010000000000")
+    dlt698.parse_action_response(good)
+    for cut in (1, 2):
+        with pytest.raises(dlt698.FrameError, match="尾部|时间标签|Data"):
+            dlt698.parse_action_response(good[:-cut])
+
+
+def test_action_response_with_data_keeps_the_data_bytes():
+    apdu = dlt698.action_response(1, 0x0010, 1, 0, data=bytes.fromhex("0F00"))
+    res = dlt698.parse_action_response(apdu)
+    assert res.data == bytes.fromhex("0F00")
+
+
+def test_action_response_rejects_unknown_or_empty_data_flag():
+    with pytest.raises(dlt698.FrameError, match="标志"):
+        dlt698.parse_action_response(bytes.fromhex("87 01 01 0010 01 00 00 7F 00 00"))
+    with pytest.raises(dlt698.FrameError, match="为空"):
+        dlt698.parse_action_response(bytes.fromhex("87 01 01 0010 01 00 00 01 00 00"))
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (b"\x00", [(0x00, b"")]),  # NULL
+        (b"\x03\x01", [(0x03, b"\x01")]),  # bool
+        (b"\x01\x00", []),  # 空数组:没有元素
+    ],
+)
+def test_get_response_decodes_scalars_and_empty_containers(data, expected):
+    apdu = dlt698.get_response(1, 0x20000200, data)
+    res = dlt698.parse_get_response(apdu)
+    if data[0] == 0x01:
+        assert res.values()[0].children == ()
+    else:
+        assert res.scalars() == expected
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"\x7F",  # 不认识的类型
+        b"\x12\x00",  # long-unsigned 少 1 字节
+        b"\x09\x05\x01",  # octet-string 声明 5 字节,只有 1 字节
+        b"\x01\x02\x12",  # 数组声明 2 个元素,只给半个
+        b"\x03",  # bool 缺 1 字节
+        b"\x09",  # 变长串缺长度字节
+        b"\x01",  # 数组缺元素个数
+    ],
+)
+def test_truncated_or_unknown_axdr_is_rejected(data):
+    apdu = dlt698.get_response(1, 0x20000200, data)
+    with pytest.raises(dlt698.FrameError):
+        dlt698.parse_get_response(apdu)
+
+
+@pytest.mark.parametrize(
+    ("parser", "apdu", "message"),
+    [
+        (dlt698.parse_get_response, bytes.fromhex("85 01 01"), "太短"),
+        (
+            dlt698.parse_get_response,
+            bytes.fromhex("84 01 01 20000200 01 120028 00 00"),
+            "不是 GET-Response",
+        ),
+        (
+            dlt698.parse_get_response,
+            bytes.fromhex("85 02 01 20000200 01 120028 00 00"),
+            r"\[1\]",
+        ),
+        (dlt698.parse_action_response, bytes.fromhex("87 01 01"), "太短"),
+        (
+            dlt698.parse_action_response,
+            bytes.fromhex("86 01 01 0010 01 00 00 00 00 00"),
+            "不是 ACTION-Response",
+        ),
+        (
+            dlt698.parse_action_response,
+            bytes.fromhex("87 02 01 0010 01 00 00 00 00 00"),
+            r"\[1\]",
+        ),
+    ],
+)
+def test_response_parsers_reject_malformed_headers(parser, apdu, message):
+    with pytest.raises(dlt698.FrameError, match=message):
+        parser(apdu)
+
+
+def test_get_response_rejects_more_than_one_data_value():
+    apdu = dlt698.get_response(1, 0x20000200, b"\x00\x00")
+    with pytest.raises(dlt698.FrameError, match="1 个 A-XDR"):
+        dlt698.parse_get_response(apdu)
+
+
+def test_build_frame_rejects_a_bad_address_or_empty_apdu():
+    with pytest.raises(dlt698.FrameError, match="地址长度"):
+        dlt698.build_frame(dlt698.get_request(1, 0x20000200), sa=b"")
+    with pytest.raises(dlt698.FrameError, match="地址长度"):
+        dlt698.build_frame(dlt698.get_request(1, 0x20000200), sa=b"\x01" * 17)
+    with pytest.raises(dlt698.FrameError, match="APDU"):
+        dlt698.build_frame(b"")
+
+
+def test_build_frame_rejects_an_apdu_over_the_14_bit_length_limit():
+    with pytest.raises(dlt698.FrameError, match="帧太长"):
+        dlt698.build_frame(b"\x00" * 0x4000)
+
+
+def test_parse_frame_rejects_short_bad_start_and_bad_end():
+    good = dlt698.build_frame(dlt698.get_request(1, 0x20000200))
+    with pytest.raises(dlt698.FrameError, match="太短"):
+        dlt698.parse_frame(good[:11])
+    bad_start = bytearray(good)
+    bad_start[0] = 0x69
+    with pytest.raises(dlt698.FrameError, match="起始符"):
+        dlt698.parse_frame(bytes(bad_start))
+    bad_end = bytearray(good)
+    bad_end[-1] = 0x17
+    with pytest.raises(dlt698.FrameError, match="结束符"):
+        dlt698.parse_frame(bytes(bad_end))
+
+
+def test_parse_frame_rejects_a_bad_hcs_even_when_the_fcs_is_recomputed():
+    """FCS 对不代表帧头对:HCS 覆盖 L+C+SA+CA,单独校验。"""
+    frame = bytearray(dlt698.build_frame(dlt698.get_request(1, 0x20000200)))
+    frame[7] ^= 0xFF
+    frame[-3:-1] = dlt698.fcs16(bytes(frame[1:-3])).to_bytes(2, "little")
+    with pytest.raises(dlt698.FrameError, match="HCS"):
+        dlt698.parse_frame(bytes(frame))
+
+
+def test_nested_arrays_beyond_the_limit_raise_frame_error_not_recursion_error():
+    data = b"\x01\x01" * 1000 + b"\x00"
+    result = dlt698.GetResult(piid=1, oad=0x20000200, data=data)
+
+    with pytest.raises(dlt698.FrameError, match="嵌套"):
+        result.values()

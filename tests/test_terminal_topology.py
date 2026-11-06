@@ -26,7 +26,7 @@ from tests_support.nested_pytest import pytest_command
 
 from testplatform.composition.root import UpstreamFault
 from testplatform.domain.device import DeviceState
-from testplatform.domain.exceptions import DeviceNotConnectedError
+from testplatform.domain.exceptions import DeviceNotConnectedError, NoVerdictError
 
 TESTS_CONFTEST = Path(__file__).resolve().parent / "conftest.py"
 REPO = Path(__file__).resolve().parent.parent
@@ -170,6 +170,10 @@ def test_terminal_reads_its_own_reading_keys_not_a_meters(bus_root, _connected_t
 
     assert reading.readings == {"上电运行时间": pytest.approx(86400)}
     assert terminal.device.history[-1] is reading
+    # 终端没有验收判据:读数是记录,不是合格结论。访问 passed 必须报错,
+    # 而不是返回 False / None 让人以为"判过了"。
+    with pytest.raises(NoVerdictError, match="终端"):
+        reading.passed
     # 电表的读数键不属于终端:拿电表的键去读,当场报错而不是返回一份电表的读数。
     with pytest.raises(KeyError, match="正向有功总电能"):
         terminal.read("正向有功总电能")

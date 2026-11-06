@@ -1,7 +1,7 @@
 """
 平台根与包内资源的唯一解析点。
 
-为什么要有这个模块:执行器(`execution/task.py`)与条款清单(`clauses.py`)都需要知道
+为什么要有这个模块:执行器(`execution/task/runtime.py`)与条款清单(`clauses.py`)都需要知道
 "根在哪、模拟从站脚本在哪、pyproject.toml 在哪"。以前两处各写一遍
 "按源码树相对层级数几级"(从本文件往上数 N 层),于是同一件事有两个来源,而且**安装形态下一半失效**:
 按包分发后,`src/` 布局不在了,数出来的那一层是 site-packages 的上级,四处路径全不存在。
@@ -135,7 +135,7 @@ class PlatformLayout:
         `unknown` 只出现在这里:它说的是"解析不出来",不是谎 —— 两边都没有就照实说,
         不许拿 `package` 冒充。能拿来跑任务的那一版是 `layout()`,不是这个视图。
 
-        用例固定是 `project`:用例不随包,挪走了就是没有(见 `execution/task.py` 的
+        用例固定是 `project`:用例不随包,挪走了就是没有(见 `execution/task/runtime.py` 的
         "项目目录没有用例"),不许回落到包里找 —— 所以它不可能是 `package`。
 
         未来若有第三来源(如用户覆盖目录),在 `_source` 里加值并补用例。

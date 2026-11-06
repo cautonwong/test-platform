@@ -29,6 +29,11 @@ def test_anonymous_allowlist_is_exactly_two_endpoints(iems: Client) -> None:
     """匿名只允许 system/info 与 auth/login;能力接口必须要求登录。"""
     info = iems.request("GET", "/api/v1/system/info")
     assert info.status == 200, f"匿名 system/info 应放行,实际 {info.status}"
+    assert {"productId", "displayName"} <= set(info.body), (
+        f"匿名 system/info 缺必需字段: {sorted(info.body)}"
+    )
+    assert isinstance(info.body["productId"], str) and info.body["productId"]
+    assert isinstance(info.body["displayName"], str) and info.body["displayName"]
     assert set(info.body) <= {"productId", "displayName", "language", "themeVersion", "loginHint"}, (
         f"匿名接口返回了 allowlist 之外的字段: {sorted(info.body)}"
     )

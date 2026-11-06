@@ -46,3 +46,20 @@ def test_nan_is_not_quietly_dropped_from_the_readings():
     evaluation = _profile().evaluate({"电压": math.nan})
 
     assert len(evaluation.breaches) == 1
+
+
+def test_non_finite_values_are_written_as_named_json_strings():
+    """证据和 summary 是 JSON:NaN/inf 只能是字符串,不能写成非法的 NaN 字面量。"""
+    import json
+
+    from testplatform.reporting.evidence import json_safe
+
+    payload = json.dumps(
+        json_safe({"nan": math.nan, "values": [math.inf, -math.inf]}),
+        allow_nan=False,
+    )
+
+    assert json.loads(payload) == {
+        "nan": "NaN",
+        "values": ["Infinity", "-Infinity"],
+    }

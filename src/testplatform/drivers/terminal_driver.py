@@ -12,6 +12,7 @@ TerminalDriver —— 采集终端:读终端自己的量,而不是把自己当�
 from __future__ import annotations
 
 from testplatform.config.manifest import Model
+from testplatform.config.protocols import register_protocol
 from testplatform.domain.criteria import CriteriaProfile
 from testplatform.domain.terminal import Terminal
 from testplatform.transport.interfaces import ByteStreamTransport
@@ -19,6 +20,8 @@ from testplatform.transport.interfaces import ByteStreamTransport
 from .meter_driver import dlt645_reader
 from .point_table_driver import PointTableDriver
 from .registry import register_device
+
+register_protocol("dlt645", access={"serial", "gateway_ssh"})
 
 
 @register_device("terminal", "dlt645")

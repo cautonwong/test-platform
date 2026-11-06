@@ -62,6 +62,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from dataclasses import asdict, fields
@@ -85,6 +86,19 @@ SETPOINT_RESTORE_OPERATION = "apply_initial_setpoint"
 # 前置没发下去 = 这一轮没有有效结论(测试无效),与断链、复位失败同归 link_lost,
 # 但三种现场排障方向不同,所以 operation 必须分开写。
 BENCH_SETUP_OPERATION = "apply_three_phase"
+
+
+def json_safe(value: Any) -> Any:
+    """JSON 只认有限数:NaN/inf 写成带名字的字符串,不让整份证据变成非法 JSON。"""
+    if isinstance(value, float) and not math.isfinite(value):
+        if math.isnan(value):
+            return "NaN"
+        return "Infinity" if value > 0 else "-Infinity"
+    if isinstance(value, Mapping):
+        return {str(key): json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    return value
 
 
 class EvidenceSession:
@@ -267,7 +281,7 @@ class EvidenceSession:
         }
         path = self.directory / ROUND_STATUS_FILE
         path.write_text(
-            json.dumps(status, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            json.dumps(json_safe(status), ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8"
         )
         return path
 
@@ -295,7 +309,7 @@ class EvidenceSession:
                 record[key] = list(scope[key])
         path = self.directory / RUN_SCOPE_FILE
         path.write_text(
-            json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            json.dumps(json_safe(record), ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8"
         )
         return path
 
@@ -343,7 +357,12 @@ class EvidenceSession:
         stream = self._streams.get(path)
         if stream is None:
             stream = self._streams[path] = path.open("a", encoding="utf-8")
-        stream.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+        stream.write(
+            json.dumps(
+                json_safe(entry), ensure_ascii=False, default=str, allow_nan=False
+            )
+            + "\n"
+        )
         # 每条写完就交给 OS:崩溃 / 被中断时已写的记录仍在文件里(攒批量写做不到)。
         stream.flush()
 

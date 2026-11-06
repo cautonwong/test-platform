@@ -165,7 +165,14 @@ class PointTableDriver:
             return decode_value(
                 token, point.encoding, point.scale, point.byteorder, point.word_order
             )
-        # 规约按整寄存器应答,点表项的 length 是有效字节数(例如 float32 之外的奇数长度)
+        # 规约按整寄存器应答,点表项的 length 是有效字节数(例如 float32 之外的奇数长度)。
+        # 但应答**短于**声明的 length 时不能截断解码:少一字节的 uint 仍会解出一个
+        # "看着正常"的数字,而现场分不清这是读数还是半帧。
+        if len(raw) < point.length:
+            raise ValueError(
+                f"点表项 {point.key!r}: 应答只有 {len(raw)} 字节,"
+                f"点表声明 length={point.length} —— 短帧不能解成读数"
+            )
         return decode_value(
             raw[: point.length],
             point.encoding,

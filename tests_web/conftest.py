@@ -36,3 +36,21 @@ def iems(iems_server) -> Client:
 @pytest.fixture
 def dcu(dcu_server) -> Client:
     return Client(dcu_server.base)
+
+
+@pytest.fixture(autouse=True)
+def _reset_mock_servers(request):
+    """每条用例开跑前把 mock-server 的内存状态恢复成启动快照。
+
+    用例共享一个服务进程:000018 的合闸、000020 的渠道、000007 的改密都会留给下一条,
+    随机顺序因此会红而单跑是绿的。先 reset 再跑,顺序才不影响结论。
+    """
+    for client_name, server_name in (("iems", "iems_server"), ("dcu", "dcu_server")):
+        if client_name not in request.fixturenames and server_name not in request.fixturenames:
+            continue
+        server = request.getfixturevalue(server_name)
+        response = Client(server.base).request("POST", "/__test/reset")
+        assert response.status == 200, (
+            f"mock-server({server.product}) 缺少 /__test/reset;"
+            "更新 EdgeC web/mock-server/server.mjs 后再跑这一套"
+        )

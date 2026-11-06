@@ -530,3 +530,9 @@ def test_dlt645_rejects_malformed_addresses_and_data_ids():
         dlt645.build_read_request("1", "00010000")
     with pytest.raises(ValueError, match="8 位十六进制"):
         dlt645.build_read_request("000000000001", 0x00010000)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_encode_value_rejects_non_finite_float32(value):
+    with pytest.raises(ValueError, match="有限数"):
+        encode_value(value, "float32", 4)

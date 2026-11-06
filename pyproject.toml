@@ -35,6 +35,7 @@ dev = [
     "pytest-randomly>=5.0",
     "pytest-cov>=7.0",
     "pytest-html>=4.2",
+    "ruff>=0.17",
 ]
 serial = ["pyserial>=3.5"]
 ssh = ["paramiko>=3.0"]
@@ -73,7 +74,20 @@ markers = [
 ]
 
 # 只给 domain/ 与 protocol/ 设门槛(没有硬件、没有网络的那两层)。
-# 93 是刻意低于当前实测 94.29% 的头寸:真正掉下来会红,正常增量不会逼人写凑数测试。
-# 只有显式带 --cov 时才生效,默认套件不跑覆盖率。
+# 93 是刻意低于完整套件实测 94.81% 的头寸:真正掉下来会红,正常增量不会逼人写凑数测试。
+# 只有显式带 --cov 时才生效,默认套件不跑覆盖率;CI 的 python-310 job 带 --cov。
+[tool.coverage.run]
+source = ["testplatform.domain", "testplatform.protocol"]
+
 [tool.coverage.report]
+include = ["*/testplatform/domain/*", "*/testplatform/protocol/*"]
 fail_under = 93
+
+# 先只开"会直接跑坏"的两类:语法错误 / 未定义名字。
+# 全套规则等基线清理完再加;`_data/` 是随包副本,源在仓库根,不重复 lint。
+[tool.ruff]
+target-version = "py310"
+exclude = ["src/testplatform/_data"]
+
+[tool.ruff.lint]
+select = ["E9", "F821"]

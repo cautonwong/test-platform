@@ -35,6 +35,28 @@ RUN_CATALOG = "tools/catalog.py"
 UPLOAD = "actions/upload-artifact"
 DOWNLOAD = "actions/download-artifact"
 MASKING_ATTRIBUTES = ("continue-on-error",)
+# GitHub 的 step 键是闭集;多一个键(比如本地运行器的 local:)整份工作流会在加载时被拒。
+# 列表照 GitHub workflow schema 的 step.properties,不凭印象补。
+ALLOWED_STEP_KEYS = frozenset(
+    {
+        "background",
+        "cancel",
+        "continue-on-error",
+        "env",
+        "id",
+        "if",
+        "name",
+        "parallel",
+        "run",
+        "shell",
+        "timeout-minutes",
+        "uses",
+        "wait",
+        "wait-all",
+        "with",
+        "working-directory",
+    }
+)
 # CI 的工作目录表达式:--root 必须显式指向它,不靠「当前目录恰好是 workspace」
 WORKSPACE = "${{ github.workspace }}"
 
@@ -706,3 +728,14 @@ def test_the_wheel_hash_is_recorded_and_checked_before_install():
     assert "sha256" in prepack and "wheel.json" in prepack, "prepack 把指纹写进 dist/wheel.json"
     assert "verifyWheel(wheel)" in lib, "装之前必须校验 wheel 指纹"
     assert "wheelTampered" in lib, "指纹不一致要有专门的错误类型"
+
+
+def test_every_workflow_step_uses_a_github_step_key():
+    """工作流先要能被 GitHub 读:step 出现 schema 之外的键,整份文件加载即失败。"""
+    for name, workflow in _workflows().items():
+        for job_name, job in (workflow.get("jobs") or {}).items():
+            for step in _steps(job):
+                unknown = sorted(set(step) - ALLOWED_STEP_KEYS)
+                assert not unknown, (
+                    f"{name} job {job_name} 的 step 用了 GitHub 不认识的键 {unknown}: {step}"
+                )

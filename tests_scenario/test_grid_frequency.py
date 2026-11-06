@@ -29,49 +29,26 @@ SETTLE_S = 0.2
 
 
 @case(id="S_00_00_01_000001_01", clause="GBT37408-5.2.1", tags=["场景", "验收"])
-def test_inverter_holds_the_grid_frequency_setpoint(composition_root, request):
+def test_inverter_holds_the_grid_frequency_setpoint(composition_root, scenario):
     """电网模拟器按设定输出 50Hz,逆变器的读数经判据集求值合格 —— 场景通过。"""
     if composition_root.evidence is None:
         pytest.skip("--no-evidence 下没有证据目录,这条场景的结论无从落盘")
 
-    grid = device_or_skip(composition_root, GRID)
+    grid = scenario.device(GRID)
     grid.connect()
     setpoint = grid.apply_grid(SETPOINT_V, SETPOINT_HZ)
-
-    inverter = device_or_skip(composition_root, INVERTER)
-    inverter.connect()
-    measured = inverter.read_all()  # 读数键 → 物理量
-    evaluation = inverter.device.latest_reading  # 聚合根记下的那条读数,带判据结论
-
-    steps = [
-        ScenarioStep(
-            GRID,
-            f"设定电网 {SETPOINT_V}V / {SETPOINT_HZ}Hz",
-            abs(setpoint.freq_hz - SETPOINT_HZ) < 0.1,
-            {"voltage_v": setpoint.voltage_v, "freq_hz": setpoint.freq_hz},
-        ),
-        ScenarioStep(
-            INVERTER,
-            "按点表读全部读数键并由判据集求值",
-            evaluation.passed,
-            {
-                "readings": dict(measured.readings),
-                "breaches": [breach.describe() for breach in evaluation.breaches],
-            },
-        ),
-    ]
-    composition_root.record_evidence(identity=case_of(request.node))
-    path = record_scenario(
-        composition_root.evidence,
-        name=request.node.originalname,
-        identity=case_of(request.node),
-        participants={
-            GRID: composition_root.role_of(GRID),
-            INVERTER: composition_root.role_of(INVERTER),
-        },
-        reading_keys={INVERTER: tuple(measured.readings)},
-        steps=steps,
+    scenario.step(
+        grid,
+        f"设定电网 {SETPOINT_V}V / {SETPOINT_HZ}Hz",
+        passed=abs(setpoint.freq_hz - SETPOINT_HZ) < 0.1,
+        detail={"voltage_v": setpoint.voltage_v, "freq_hz": setpoint.freq_hz},
     )
+
+    inverter = scenario.device(INVERTER)
+    inverter.connect()
+    measured = scenario.measure(inverter)
+
+    path = scenario.record()
 
     assert path is not None, "默认套件开着证据记录,这条场景必须能落盘"
     record = json.loads(path.read_text(encoding="utf-8"))
@@ -81,8 +58,8 @@ def test_inverter_holds_the_grid_frequency_setpoint(composition_root, request):
         {"id": INVERTER, "role": "dut"},
     ]
     # 场景本身要成立的那条跨设备事实:逆变器报的频率跟着电网设定值。
-    assert evaluation.passed is True
-    assert abs(evaluation.grid_freq_hz - setpoint.freq_hz) <= 0.5
+    assert measured.passed is True
+    assert abs(inverter.device.latest_reading.grid_freq_hz - setpoint.freq_hz) <= 0.5
 
 
 @case(id="S_00_00_01_000002_01", clause="GBT37408-5.2.1", tags=["场景", "反例"])

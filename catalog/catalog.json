@@ -86,7 +86,7 @@
     "M_00_00_01_000003_05": {
       "clause": "GBT34131-5.2.4",
       "file": "tests/test_battery.py",
-      "line": 58,
+      "line": 59,
       "tags": [
         "一致性",
         "告警"
@@ -104,7 +104,7 @@
     "M_00_00_01_000004_02": {
       "clause": "GBT37408-5.3.1",
       "file": "tests/test_inverter.py",
-      "line": 101,
+      "line": 102,
       "tags": [
         "一致性",
         "实时性"
@@ -158,7 +158,7 @@
     "M_00_00_01_000006_04_2": {
       "clause": "GBT37408-5.1.2",
       "file": "tests/test_inverter.py",
-      "line": 210,
+      "line": 211,
       "tags": [
         "链路"
       ]
@@ -175,7 +175,7 @@
     "S_00_00_01_000002_01": {
       "clause": "GBT37408-5.2.1",
       "file": "tests_scenario/test_grid_frequency.py",
-      "line": 88,
+      "line": 65,
       "tags": [
         "场景",
         "反例"
@@ -184,7 +184,7 @@
     "S_00_00_01_000003_01": {
       "clause": "GBT37408-5.2.1",
       "file": "tests_scenario/test_grid_frequency.py",
-      "line": 151,
+      "line": 128,
       "tags": [
         "场景"
       ]
@@ -418,7 +418,7 @@
     "T_00_00_04_000000_12": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 481,
+      "line": 502,
       "tags": [
         "报告"
       ]
@@ -426,7 +426,7 @@
     "T_00_00_04_000000_13": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 509,
+      "line": 530,
       "tags": [
         "报告"
       ]
@@ -434,7 +434,7 @@
     "T_00_00_04_000000_14": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 535,
+      "line": 556,
       "tags": [
         "报告"
       ]
@@ -442,7 +442,7 @@
     "T_00_00_04_000000_15": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 554,
+      "line": 575,
       "tags": [
         "报告"
       ]
@@ -466,7 +466,7 @@
     "T_00_00_04_000000_18": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 420,
+      "line": 441,
       "tags": [
         "报告"
       ]
@@ -474,7 +474,7 @@
     "T_00_00_04_000000_19": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 440,
+      "line": 461,
       "tags": [
         "报告"
       ]
@@ -482,7 +482,15 @@
     "T_00_00_04_000000_20": {
       "clause": "free: 平台:测试报告",
       "file": "tests_platform/test_task_report.py",
-      "line": 459,
+      "line": 480,
+      "tags": [
+        "报告"
+      ]
+    },
+    "T_00_00_04_000000_21": {
+      "clause": "free: 平台:测试报告",
+      "file": "tests_platform/test_task_report.py",
+      "line": 418,
       "tags": [
         "报告"
       ]
@@ -522,7 +530,7 @@
     "T_00_00_07_000000_01": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 548,
+      "line": 549,
       "tags": [
         "证据",
         "契约"
@@ -531,7 +539,7 @@
     "T_00_00_07_000000_02": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 562,
+      "line": 563,
       "tags": [
         "证据",
         "契约"
@@ -540,7 +548,7 @@
     "T_00_00_07_000000_03": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 578,
+      "line": 579,
       "tags": [
         "证据",
         "契约"
@@ -549,7 +557,7 @@
     "T_00_00_07_000000_04": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 588,
+      "line": 589,
       "tags": [
         "证据",
         "契约"
@@ -558,7 +566,7 @@
     "T_00_00_07_000000_05": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 668,
+      "line": 669,
       "tags": [
         "证据",
         "契约"
@@ -567,7 +575,7 @@
     "T_00_00_07_000000_06": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 683,
+      "line": 684,
       "tags": [
         "证据",
         "契约"
@@ -576,7 +584,7 @@
     "T_00_00_07_000000_07": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 704,
+      "line": 705,
       "tags": [
         "证据",
         "契约"
@@ -585,7 +593,7 @@
     "T_00_00_07_000000_08": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 736,
+      "line": 737,
       "tags": [
         "证据",
         "契约"
@@ -594,7 +602,7 @@
     "T_00_00_07_000000_09": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 801,
+      "line": 802,
       "tags": [
         "证据",
         "契约"
@@ -603,7 +611,7 @@
     "T_00_00_07_000000_10": {
       "clause": "free: 平台:证据",
       "file": "tests_platform/test_evidence_contract.py",
-      "line": 817,
+      "line": 818,
       "tags": [
         "证据",
         "契约"
@@ -865,7 +873,7 @@
     }
   },
   "counts": {
-    "cases": 79,
+    "cases": 80,
     "clauses": 20,
     "devices": 6,
     "gaps": 0,

@@ -133,7 +133,7 @@ def test_consumer_device_reads(composition_root):
     device.connect()
     reading = device.read_all()
     assert reading.readings
-    assert device.device.latest_reading.passed is True
+    assert reading.passed is True
 '''
 
 CONSUMER_DEVICES = """
